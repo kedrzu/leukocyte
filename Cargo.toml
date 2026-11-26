@@ -1,0 +1,18 @@
+[package]
+name = "leukocyte"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "A lightweight macOS daemon that kills stale dev processes left by AI agents, with per-repo Lua detectors"
+license = "MIT"
+repository = "https://github.com/kedrzu/leukocyte"
+readme = "README.md"
+
+[dependencies]
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

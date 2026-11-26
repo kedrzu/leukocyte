@@ -1,0 +1,4 @@
+# Lint configuration for clippy. Warnings are denied in `scripts/verify.sh`; nothing is allowed
+# to get green. Production code does not unwrap or expect (CLAUDE.md, "Rust rules").
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

@@ -1,0 +1,14 @@
+.DS_Store
+target/
+
+# Agent scratch space and personal instructions
+.context/
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+.worktrees
+
+# Editors
+.idea/
+.vscode/
+*.swp
