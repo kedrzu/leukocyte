@@ -23,6 +23,8 @@ fn sleeper() {
     }
 }
 
+mod common;
+
 /// Test helpers. `#[cfg(test)]` marks them as test code for clippy's `allow-unwrap-in-tests`,
 /// which does not count a test crate's free functions as tests.
 #[cfg(test)]
@@ -34,7 +36,7 @@ mod support {
 
     impl Spawned {
         pub fn new(command: &mut Command) -> Self {
-            Self(command.spawn().unwrap())
+            Self(common::spawn(command).unwrap())
         }
 
         pub fn pid(&self) -> i32 {

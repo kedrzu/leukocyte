@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 
 use tempfile::TempDir;
 
+mod common;
+
 #[cfg(test)]
 mod support {
     use super::*;
@@ -52,7 +54,7 @@ mod support {
                 status,
                 stdout,
                 stderr,
-            } = self.command(args).output().unwrap();
+            } = common::output(&mut self.command(args)).unwrap();
             Ran {
                 ok: status.success(),
                 out: String::from_utf8_lossy(&stdout).into_owned(),
@@ -72,12 +74,12 @@ mod support {
         }
 
         pub fn start_daemon(&self) -> DaemonGuard {
-            let child = self
-                .command(&["daemon"])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .unwrap();
+            let child = common::spawn(
+                self.command(&["daemon"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null()),
+            )
+            .unwrap();
             let guard = DaemonGuard(child);
             wait_for("the daemon's first scan", || {
                 let status = self.run(&["status"]);
@@ -102,15 +104,16 @@ mod support {
     impl Spawned {
         pub fn new(marker: &str, cwd: &Path) -> Self {
             Self(
-                Command::new("/bin/sh")
-                    // `; :` keeps the shell alive instead of exec'ing `sleep`.
-                    .args(["-c", "sleep 60; :", marker])
-                    .current_dir(cwd)
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .spawn()
-                    .unwrap(),
+                common::spawn(
+                    Command::new("/bin/sh")
+                        // `; :` keeps the shell alive instead of exec'ing `sleep`.
+                        .args(["-c", "sleep 60; :", marker])
+                        .current_dir(cwd)
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null()),
+                )
+                .unwrap(),
             )
         }
 

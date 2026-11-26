@@ -22,6 +22,8 @@ fn sleeper() {
     }
 }
 
+mod common;
+
 /// Test helpers. `#[cfg(test)]` marks them as test code for clippy's `allow-unwrap-in-tests`.
 #[cfg(test)]
 mod support {
@@ -32,7 +34,7 @@ mod support {
 
     impl Spawned {
         pub fn new(command: &mut Command) -> Self {
-            Self(command.spawn().unwrap())
+            Self(common::spawn(command).unwrap())
         }
 
         pub fn pid(&self) -> i32 {
@@ -90,14 +92,15 @@ mod support {
     }
 
     pub fn git(dir: &Path, args: &[&str]) {
-        let status = Command::new("git")
-            .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
-            .args(args)
-            .current_dir(dir)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .unwrap();
+        let status = common::status(
+            Command::new("git")
+                .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
+                .args(args)
+                .current_dir(dir)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null()),
+        )
+        .unwrap();
         assert!(status.success(), "git {args:?}");
     }
 
@@ -216,15 +219,16 @@ fn a_process_keeps_its_repo_after_its_worktree_is_deleted() {
 #[test]
 fn an_orphan_takes_its_origin_from_claude_pid() {
     let mut agent = Spawned::new(Command::new("/bin/sleep").arg("30").env_clear());
-    let output = Command::new("/bin/sh")
-        .args([
-            "-c",
-            &format!("{} >/dev/null 2>&1 & echo $!", sleeper_cmd()),
-        ])
-        .env_clear()
-        .env("CLAUDE_PID", agent.pid().to_string())
-        .output()
-        .unwrap();
+    let output = common::output(
+        Command::new("/bin/sh")
+            .args([
+                "-c",
+                &format!("{} >/dev/null 2>&1 & echo $!", sleeper_cmd()),
+            ])
+            .env_clear()
+            .env("CLAUDE_PID", agent.pid().to_string()),
+    )
+    .unwrap();
     let pid: i32 = String::from_utf8(output.stdout)
         .unwrap()
         .trim()

@@ -16,6 +16,8 @@ use leukocyte::platform;
 use leukocyte::rules::RuleSet;
 use tempfile::TempDir;
 
+mod common;
+
 #[cfg(test)]
 mod support {
     use super::*;
@@ -50,7 +52,7 @@ mod support {
 
         /// Runs a command to completion; panics with its stderr when it fails.
         pub fn run(&self, args: &[&str]) -> String {
-            let out = self.command(args).output().unwrap();
+            let out = common::output(&mut self.command(args)).unwrap();
             assert!(
                 out.status.success(),
                 "leukocyte {args:?} failed: {}",
@@ -69,15 +71,16 @@ mod support {
 
         pub fn start_daemon(&self) -> Group {
             let guard = Group(
-                self.command(&["daemon"])
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .process_group(0)
-                    .spawn()
-                    .unwrap(),
+                common::spawn(
+                    self.command(&["daemon"])
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .process_group(0),
+                )
+                .unwrap(),
             );
             wait_for("the daemon's first scan", Duration::from_secs(15), || {
-                self.command(&["status"]).output().is_ok_and(|out| {
+                common::output(&mut self.command(&["status"])).is_ok_and(|out| {
                     out.status.success()
                         && !String::from_utf8_lossy(&out.stdout).contains("scan:     none yet")
                 })
@@ -104,11 +107,12 @@ mod support {
 
     impl Drop for Group {
         fn drop(&mut self) {
-            let _ = Command::new("/bin/kill")
-                .args(["-KILL", "--", &format!("-{}", self.pid())])
-                // A group already gone, or left with only its zombie leader, answers an error.
-                .stderr(Stdio::null())
-                .status();
+            let _ = common::status(
+                Command::new("/bin/kill")
+                    .args(["-KILL", "--", &format!("-{}", self.pid())])
+                    // A group already gone, or left with only its zombie leader, answers an error.
+                    .stderr(Stdio::null()),
+            );
             let _ = self.0.kill();
             let _ = self.0.wait();
         }
@@ -127,20 +131,21 @@ mod support {
         );
         let middle = r#"sh -c "$LK_TREE" & while [ ! -e "$LK_GO" ]; do sleep 0.05; done"#;
         Group(
-            Command::new("/bin/sh")
-                .arg0("claude")
-                .args(["-c", r#"sh -c "$LK_MIDDLE" & sleep 300; :"#])
-                .env("LK_TREE", tree)
-                .env("LK_MIDDLE", middle)
-                .env("LK_PIDS", pids)
-                .env("LK_GO", go)
-                .current_dir(cwd)
-                .stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .process_group(0)
-                .spawn()
-                .unwrap(),
+            common::spawn(
+                Command::new("/bin/sh")
+                    .arg0("claude")
+                    .args(["-c", r#"sh -c "$LK_MIDDLE" & sleep 300; :"#])
+                    .env("LK_TREE", tree)
+                    .env("LK_MIDDLE", middle)
+                    .env("LK_PIDS", pids)
+                    .env("LK_GO", go)
+                    .current_dir(cwd)
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .process_group(0),
+            )
+            .unwrap(),
         )
     }
 

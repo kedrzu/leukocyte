@@ -7,3 +7,6 @@ pub mod facts;
 pub mod kill;
 pub mod platform;
 pub mod rules;
+
+#[cfg(test)]
+mod test_support;

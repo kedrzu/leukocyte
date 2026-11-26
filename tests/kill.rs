@@ -38,6 +38,8 @@ fn spawner() {
     }
 }
 
+mod common;
+
 /// Test helpers. `#[cfg(test)]` marks them as test code for clippy's `allow-unwrap-in-tests`.
 #[cfg(test)]
 mod support {
@@ -49,7 +51,7 @@ mod support {
 
     impl Tree {
         pub fn new(command: &mut Command) -> Self {
-            Self(command.process_group(0).spawn().unwrap())
+            Self(common::spawn(command.process_group(0)).unwrap())
         }
 
         pub fn sh(script: &str) -> Self {
@@ -76,11 +78,12 @@ mod support {
 
     impl Drop for Tree {
         fn drop(&mut self) {
-            let _ = Command::new("/bin/kill")
-                .args(["-KILL", "--", &format!("-{}", self.pid())])
-                // A group left with only its zombie leader answers EPERM: nothing to kill.
-                .stderr(Stdio::null())
-                .status();
+            let _ = common::status(
+                Command::new("/bin/kill")
+                    .args(["-KILL", "--", &format!("-{}", self.pid())])
+                    // A group left with only its zombie leader answers EPERM: nothing to kill.
+                    .stderr(Stdio::null()),
+            );
             let _ = self.0.kill();
             let _ = self.0.wait();
         }

@@ -24,7 +24,7 @@ impl Spawned {
         if let Some(cwd) = cwd {
             cmd.current_dir(cwd);
         }
-        Self(cmd.spawn().unwrap())
+        Self(crate::test_support::spawn(&mut cmd).unwrap())
     }
 
     fn pid(&self) -> i32 {

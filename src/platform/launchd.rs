@@ -162,21 +162,20 @@ mod tests {
         );
         fs::write(&path, &text).unwrap();
         // plutil validates the XML and the plist structure.
-        let lint = Command::new("/usr/bin/plutil")
-            .arg("-lint")
-            .arg(&path)
-            .output()
-            .unwrap();
+        let lint =
+            crate::test_support::output(Command::new("/usr/bin/plutil").arg("-lint").arg(&path))
+                .unwrap();
         assert!(
             lint.status.success(),
             "{}",
             String::from_utf8_lossy(&lint.stdout)
         );
-        let json = Command::new("/usr/bin/plutil")
-            .args(["-convert", "json", "-o", "-"])
-            .arg(&path)
-            .output()
-            .unwrap();
+        let json = crate::test_support::output(
+            Command::new("/usr/bin/plutil")
+                .args(["-convert", "json", "-o", "-"])
+                .arg(&path),
+        )
+        .unwrap();
         let v: serde_json::Value = serde_json::from_slice(&json.stdout).unwrap();
         assert_eq!(v["Label"], LABEL);
         assert_eq!(
