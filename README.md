@@ -139,6 +139,9 @@ the dirty pages of the system libraries the file-system watch loads.
 RSS counts the shared, clean pages of system libraries; `phys_footprint` is the memory the daemon
 itself dirties, what Activity Monitor shows as Memory.
 
+The budget is `phys_footprint` at most 8 MB and CPU under 1 % of one core on about 1000 processes.
+RSS is not budgeted: it stays around 13 MB whatever the daemon does.
+
 ## Verifying an install
 
 Run by hand after `leukocyte install`:
