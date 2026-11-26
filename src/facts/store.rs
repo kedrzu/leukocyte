@@ -164,7 +164,12 @@ pub struct OriginFacts {
     pub alive: Option<bool>,
 }
 
-impl FactView<'_> {
+impl<'a> FactView<'a> {
+    /// The snapshot these facts are of.
+    pub fn table(&self) -> &'a ProcessTable {
+        self.table
+    }
+
     pub fn facts(&self, key: ProcKey) -> Option<ProcFacts> {
         let process = self.table.get(key)?;
         let tracked = self.store.tracked.get(&key)?;

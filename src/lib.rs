@@ -2,3 +2,4 @@
 
 pub mod facts;
 pub mod platform;
+pub mod rules;

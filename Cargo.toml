@@ -12,6 +12,8 @@ readme = "README.md"
 libc = "0.2"
 libproc = "0.15"
 mach2 = "0.7"
+mlua = { version = "0.12", features = ["luau"] }
+regex = "1"
 
 [profile.release]
 opt-level = "z"
