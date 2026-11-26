@@ -11,7 +11,7 @@ says `enforce = true`.
 ## Install
 
 ```sh
-brew install kedrzu/tap/leukocyte     # not published yet
+brew install kedrzu/tap/leukocyte     # once the first release exists
 cargo install --git https://github.com/kedrzu/leukocyte
 leukocyte install                     # writes and starts the LaunchAgent
 ```
