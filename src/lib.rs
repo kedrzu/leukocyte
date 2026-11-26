@@ -1,5 +1,6 @@
 //! leukocyte: kills stale dev processes left by AI agents, by per-repo Luau rules.
 
+pub mod cli;
 pub mod daemon;
 pub mod engine;
 pub mod facts;
