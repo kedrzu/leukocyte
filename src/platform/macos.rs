@@ -187,6 +187,26 @@ pub fn sockets(key: ProcKey) -> Option<Sockets> {
     still_same(key).then_some(sockets)
 }
 
+unsafe extern "C" {
+    /// `<malloc/malloc.h>`: releases free memory of `zone` (all zones when null) back to the
+    /// system, up to `goal` bytes (as much as possible when 0); returns the bytes released.
+    fn malloc_zone_pressure_relief(
+        zone: *mut libc::malloc_zone_t,
+        goal: libc::size_t,
+    ) -> libc::size_t;
+}
+
+/// Returns the allocator's free pages to the system, as it does on its own only under memory
+/// pressure. A scan allocates and frees a table of every process; without this, the freed
+/// pages stay dirty and count against the daemon's footprint until the next scan reuses them.
+pub fn release_free_memory() {
+    // SAFETY: a null zone asks for every zone and 0 for as much as possible; the call only
+    // returns free pages, which no live allocation uses, to the system.
+    unsafe {
+        malloc_zone_pressure_relief(std::ptr::null_mut(), 0);
+    }
+}
+
 /// The daemon's own pid.
 pub fn current_pid() -> i32 {
     // SAFETY: `getpid` takes no arguments, touches no memory and cannot fail.

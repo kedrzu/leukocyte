@@ -2,8 +2,8 @@
 //! installing the LaunchAgent.
 //!
 //! The seam for another OS is this module's function set (`list_pids`, `base_info`, `cmdline`,
-//! `cwd`, `sockets`, `signal`, `alive`, `current_pid`, `current_uid`, `notify`, `launchd`),
-//! implemented per OS in a submodule; the types below are shared.
+//! `cwd`, `sockets`, `signal`, `alive`, `current_pid`, `current_uid`, `release_free_memory`,
+//! `notify`, `launchd`), implemented per OS in a submodule; the types below are shared.
 //! This is the only module allowed `unsafe`.
 //!
 //! Every fact the OS refuses (another uid's process, a pid that vanished) is `None`, never a
@@ -20,7 +20,8 @@ mod macos;
 mod notify;
 #[cfg(target_os = "macos")]
 pub use macos::{
-    alive, base_info, cmdline, current_pid, current_uid, cwd, list_pids, signal, sockets,
+    alive, base_info, cmdline, current_pid, current_uid, cwd, list_pids, release_free_memory,
+    signal, sockets,
 };
 #[cfg(target_os = "macos")]
 pub use notify::notify;

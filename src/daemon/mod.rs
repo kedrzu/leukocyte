@@ -379,6 +379,9 @@ impl Daemon {
     pub fn tick(&mut self) {
         self.reload();
         let started = Instant::now();
+        // Nothing reads the previous snapshot during a scan; dropping it first keeps one table
+        // alive at a time instead of two. A failed snapshot leaves none for `check`.
+        self.table = None;
         let env: Vec<String> = self
             .sources()
             .iter()
@@ -455,6 +458,7 @@ impl Daemon {
         });
         self.table = Some(table);
         self.publish_status();
+        platform::release_free_memory();
     }
 
     /// The loaded rules files, personal first.
@@ -633,7 +637,9 @@ impl Daemon {
     /// text) scoped to `repo_path`.
     fn check(&self, repo_path: Option<&str>, rules: Option<String>) -> Response {
         let Some(table) = &self.table else {
-            return Response::error("no scan has completed yet");
+            return Response::error(
+                "no scan to explain: none has completed yet, or the last one failed (see status)",
+            );
         };
         let repo = match repo_path.map(|p| self.registered_repo(Path::new(p))) {
             None => None,
