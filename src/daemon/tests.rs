@@ -272,6 +272,94 @@ fn argv_secrets_never_reach_the_log_status_or_check_and_the_files_are_private() 
     assert_eq!(mode_bits(&paths.logs), 0o700);
 }
 
+const SLEEPER_ARG: &str = "leukocyte-test-sleeper";
+
+/// Not a test: the body of a long-lived process that is not an Apple binary, so macOS lets the
+/// daemon read its environment. Acts only when started with `SLEEPER_ARG`.
+#[test]
+#[ignore = "helper: runs as a child process of the daemon tests"]
+fn sleeper() {
+    if std::env::args().any(|arg| arg == SLEEPER_ARG) {
+        std::thread::sleep(Duration::from_secs(300));
+    }
+}
+
+#[test]
+fn identity_values_never_reach_the_log_status_or_check() {
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = Paths::under(tmp.path());
+    let repo = tmp.path().canonicalize().unwrap().join("repo");
+    fs::create_dir_all(repo.join(".git")).unwrap();
+    fs::create_dir_all(repo.join(".leukocyte")).unwrap();
+    let needle = marker("identity");
+    fs::write(
+        repo.join(".leukocyte/rules.lua"),
+        report_rules("identity", &needle),
+    )
+    .unwrap();
+    let mut d = daemon(tmp.path());
+    Config {
+        mode: ConfigMode::Observe,
+        repos: vec![repo.clone()],
+    }
+    .write(&paths.config_file())
+    .unwrap();
+    let agent_id = format!("sentinel-agent-{}", std::process::id());
+    let session_id = format!("sentinel-session-{}", std::process::id());
+    let mut cmd = Command::new(std::env::current_exe().unwrap());
+    cmd.args(["--exact", "daemon::tests::sleeper", "--ignored", "--quiet"])
+        .args([SLEEPER_ARG, &needle])
+        .env("PASEO_AGENT_ID", &agent_id)
+        .env("CLAUDE_CODE_SESSION_ID", &session_id)
+        .current_dir(&repo)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    let child = Spawned(crate::test_support::spawn(&mut cmd).unwrap());
+
+    d.tick();
+    d.tick();
+
+    let log = fs::read_to_string(paths.action_log()).unwrap();
+    assert_eq!(
+        reports_on(tmp.path(), child.pid()),
+        ["identity", "identity"],
+        "{log}"
+    );
+    let check = |d: &mut Daemon, repo_path: Option<String>, rules: Option<String>| {
+        let Response::Check(check) = d.handle(Request::Check { repo_path, rules }) else {
+            panic!("check failed");
+        };
+        assert!(check.explanations.iter().any(|e| e.pid == child.pid()));
+        serde_json::to_string(&Response::Check(check)).unwrap()
+    };
+    let outputs = [
+        ("action log", log),
+        ("check", check(&mut d, None, None)),
+        (
+            "check of the repo",
+            check(&mut d, Some(repo.display().to_string()), None),
+        ),
+        (
+            "ad-hoc check",
+            check(&mut d, None, Some(report_rules("adhoc", &needle))),
+        ),
+        (
+            "status",
+            serde_json::to_string(&d.handle(Request::Status)).unwrap(),
+        ),
+        ("notifications", format!("{:?}", notifications(&d))),
+    ];
+    for value in [&agent_id, &session_id] {
+        for (what, text) in &outputs {
+            assert!(
+                !text.contains(value.as_str()),
+                "{value} in the {what}: {text}"
+            );
+        }
+    }
+}
+
 #[test]
 fn a_failing_rule_is_logged_and_notified_once_until_it_clears() {
     let tmp = tempfile::tempdir().unwrap();

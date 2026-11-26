@@ -114,10 +114,14 @@ mod support {
     }
 
     pub fn job(subtree: Vec<ProcKey>, grace: Duration) -> KillJob {
+        job_with(subtree, Signal::Term, grace)
+    }
+
+    pub fn job_with(subtree: Vec<ProcKey>, signal: Signal, grace: Duration) -> KillJob {
         KillJob {
             root: subtree[0],
             subtree,
-            signal: Signal::Term,
+            signal,
             grace,
         }
     }
@@ -173,6 +177,31 @@ fn a_tree_that_obeys_term_dies_without_escalation() {
     // The children were signalled before their parent.
     assert_eq!(report.signalled.last(), Some(&members[0]));
     assert!(members.iter().all(|k| !platform::alive(*k)));
+}
+
+/// The rule's `signal` key is the first signal sent: the process records which one it got.
+#[test]
+fn the_jobs_signal_is_the_first_one_sent() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("received");
+    let script = format!(
+        r#"f='{}'; trap 'echo INT > "$f"; exit 0' INT; trap 'echo TERM > "$f"; exit 0' TERM; echo ready >> "$f.ready"; while :; do /bin/sleep 0.1; done"#,
+        file.display()
+    );
+    let tree = Tree::sh(&script);
+    let root = tree.key();
+    wait_for(|| dir.path().join("received.ready").exists().then_some(()));
+
+    let report = kill(
+        &job_with(vec![root], Signal::Int, Duration::from_secs(10)),
+        Own::current(),
+    );
+
+    assert_eq!(std::fs::read_to_string(&file).unwrap().trim(), "INT");
+    assert_eq!(report.signalled, vec![root]);
+    assert!(report.escalated.is_empty(), "{report:?}");
+    assert!(report.survivors_after.is_empty(), "{report:?}");
+    assert!(!platform::alive(root));
 }
 
 #[test]
