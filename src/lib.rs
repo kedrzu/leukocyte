@@ -2,5 +2,6 @@
 
 pub mod engine;
 pub mod facts;
+pub mod kill;
 pub mod platform;
 pub mod rules;

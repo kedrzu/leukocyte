@@ -17,6 +17,7 @@ use std::time::Duration;
 use libc::c_int;
 use libproc::libproc::bsd_info::BSDInfo;
 use libproc::libproc::file_info::{ListFDs, ProcFDType, pidfdinfo};
+use libproc::libproc::kinfo::KinfoProc;
 use libproc::libproc::net_info::{SocketFDInfo, SocketInfoKind, TcpSIState};
 use libproc::libproc::pid_rusage::{RUsageInfoV2, pidrusage};
 use libproc::libproc::proc_pid::{kproc_info_raw, listpidinfo, pidinfo};
@@ -301,17 +302,33 @@ fn arg_max() -> Option<usize> {
     })
 }
 
+/// Whether `key` is still running: the pid belongs to that process and it is not a zombie (a
+/// process that exited and waits for its parent to reap it).
+pub fn alive(key: ProcKey) -> bool {
+    let Some(kinfo) = kinfo(key.pid) else {
+        return false;
+    };
+    let zombie = u32::try_from(kinfo.kp_proc.p_stat).ok() == Some(libc::SZOMB);
+    !zombie && kinfo_start_of(&kinfo) == Some(key.start)
+}
+
 /// Whether `key.pid` still belongs to the process that started at `key.start`.
 fn still_same(key: ProcKey) -> bool {
     kinfo_start(key.pid) == Some(key.start)
 }
 
+/// `sysctl(KERN_PROC_PID)` of `pid`, readable for every uid.
+fn kinfo(pid: i32) -> Option<KinfoProc> {
+    let kinfo = kproc_info_raw(pid).ok()?;
+    (kinfo.kp_proc.p_pid == pid).then_some(kinfo)
+}
+
 /// The start time of `pid` from `sysctl(KERN_PROC_PID)`, readable for every uid.
 fn kinfo_start(pid: i32) -> Option<u64> {
-    let kinfo = kproc_info_raw(pid).ok()?;
-    if kinfo.kp_proc.p_pid != pid {
-        return None;
-    }
+    kinfo_start_of(&kinfo(pid)?)
+}
+
+fn kinfo_start_of(kinfo: &KinfoProc) -> Option<u64> {
     // `p_un` is the `p_starttime` member of the kernel's union.
     let start = kinfo.kp_proc.p_un;
     micros(
