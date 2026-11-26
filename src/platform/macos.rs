@@ -186,6 +186,18 @@ pub fn sockets(key: ProcKey) -> Option<Sockets> {
     still_same(key).then_some(sockets)
 }
 
+/// The daemon's own pid.
+pub fn current_pid() -> i32 {
+    // SAFETY: `getpid` takes no arguments, touches no memory and cannot fail.
+    unsafe { libc::getpid() }
+}
+
+/// The daemon's effective uid.
+pub fn current_uid() -> u32 {
+    // SAFETY: `geteuid` takes no arguments, touches no memory and cannot fail.
+    unsafe { libc::geteuid() }
+}
+
 /// Sends `sig` to `key` if the pid still belongs to that process, re-checking the start time
 /// immediately before `kill(2)`.
 ///

@@ -208,6 +208,23 @@ impl<'a> FactView<'a> {
         Some(twins)
     }
 
+    /// Whether `key` is an origin anchor: an agent process (argv0 in
+    /// [`AGENTS`](crate::facts::origin::AGENTS)), or the process recorded as its own terminal
+    /// origin (the topmost holder of a terminal session's tty). A subtree kill stops at an
+    /// anchor: the anchor and everything below it are never part of it. A process outside the
+    /// table is not an anchor.
+    pub fn is_anchor(&self, key: ProcKey) -> bool {
+        let Some(process) = self.table.get(key) else {
+            return false;
+        };
+        let own_terminal = OriginRecord {
+            origin: key,
+            kind: OriginKind::Terminal,
+        };
+        origin::is_agent(process)
+            || self.store.tracked.get(&key).and_then(|t| t.origin) == Some(own_terminal)
+    }
+
     /// The session leader is the process whose pid is the session id. A pid reused by a
     /// process that started later, or that leads another session, is not it.
     fn session_alive(&self, process: &Process) -> Option<bool> {
@@ -540,6 +557,31 @@ mod tests {
         );
         // The app above the terminal has no origin.
         assert_eq!(facts(&store, &t, 50).origin, NO_ORIGIN);
+    }
+
+    #[test]
+    fn anchors_are_agents_and_terminal_origins_not_their_descendants() {
+        let mut store = FactStore::new(Repos::default());
+        let t = scan(
+            &mut store,
+            100,
+            vec![
+                launchd(),
+                proc(50, 50, 1, "Terminal"),
+                proc(51, 51, 50, "zsh").tty(3).session(51),
+                proc(52, 52, 51, "nx").tty(3),
+                // nx gives each task its own pty and session: not a terminal anchor.
+                proc(53, 53, 52, "node").tty(5).session(53),
+                proc(54, 54, 51, "/Users/u/.local/bin/claude").tty(3),
+                proc(55, 55, 54, "bash").tty(3),
+            ],
+        );
+        let view = store.view(&t);
+        assert!(view.is_anchor(key(51, 51)));
+        assert!(view.is_anchor(key(54, 54)));
+        for (pid, start) in [(1, 1), (50, 50), (52, 52), (53, 53), (55, 55), (99, 99)] {
+            assert!(!view.is_anchor(key(pid, start)), "pid {pid}");
+        }
     }
 
     fn record_of(pid: i32, start: u64, kind: OriginKind) -> Option<OriginRecord> {

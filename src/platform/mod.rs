@@ -1,7 +1,8 @@
 //! The only OS-specific code: reading processes and signalling them.
 //!
 //! The seam for another OS is this module's function set (`list_pids`, `base_info`, `cmdline`,
-//! `cwd`, `sockets`, `signal`), implemented per OS in a submodule; the types below are shared.
+//! `cwd`, `sockets`, `signal`, `current_pid`, `current_uid`), implemented per OS in a submodule;
+//! the types below are shared.
 //! This is the only module allowed `unsafe`.
 //!
 //! Every fact the OS refuses (another uid's process, a pid that vanished) is `None`, never a
@@ -13,7 +14,7 @@ use std::time::Duration;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::{base_info, cmdline, cwd, list_pids, signal, sockets};
+pub use macos::{base_info, cmdline, current_pid, current_uid, cwd, list_pids, signal, sockets};
 
 /// The identity of a process: a pid whose current start time differs is a different process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

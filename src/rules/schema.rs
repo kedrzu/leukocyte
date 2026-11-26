@@ -6,6 +6,7 @@ use std::time::Duration;
 use mlua::RegistryKey;
 use regex::Regex;
 
+use crate::facts::ProcFacts;
 use crate::platform::Cmdline;
 
 /// One rule of a rules file, validated.
@@ -64,6 +65,17 @@ pub enum When {
     Orphaned,
     /// No structural condition.
     Always,
+}
+
+impl When {
+    /// Whether the condition holds for a process. An unknown origin is not dead.
+    pub fn holds(self, facts: &ProcFacts) -> bool {
+        match self {
+            Self::Abandoned => facts.orphan && facts.origin.alive == Some(false),
+            Self::Orphaned => facts.orphan,
+            Self::Always => true,
+        }
+    }
 }
 
 /// The signals a rule may send first; the kill escalates to `SIGKILL` after `grace`.

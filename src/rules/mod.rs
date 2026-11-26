@@ -222,14 +222,9 @@ impl RuleSet {
     }
 }
 
-/// Whether the declarative part of `rule` holds. An unknown origin is not dead.
+/// Whether the declarative part of `rule` holds.
 fn holds(rule: &Rule, facts: &ProcFacts) -> bool {
-    let structural = match rule.when {
-        When::Abandoned => facts.orphan && facts.origin.alive == Some(false),
-        When::Orphaned => facts.orphan,
-        When::Always => true,
-    };
-    structural && rule.idle.is_none_or(|idle| facts.idle >= idle)
+    rule.when.holds(facts) && rule.idle.is_none_or(|idle| facts.idle >= idle)
 }
 
 /// The daemon-written reason: the facts that drive a verdict, e.g.
