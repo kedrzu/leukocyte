@@ -66,6 +66,14 @@ impl Process {
     }
 }
 
+/// A made-up process for [`ProcessTable::synthetic`].
+#[cfg(test)]
+pub(crate) struct SyntheticProcess {
+    pub info: BaseInfo,
+    pub cmdline: Option<Cmdline>,
+    pub cwd: Option<PathBuf>,
+}
+
 /// A snapshot of every process on the machine.
 #[derive(Debug)]
 pub struct ProcessTable {
@@ -91,7 +99,46 @@ impl ProcessTable {
             .into_iter()
             .filter_map(platform::base_info)
             .collect();
+        Ok(Self::link(infos, taken_at, |info| Process {
+            parent: None,
+            children: Vec::new(),
+            env_allow: Arc::clone(&env_allow),
+            cmdline: OnceCell::new(),
+            cwd: OnceCell::new(),
+            sockets: OnceCell::new(),
+            info,
+        }))
+    }
 
+    /// A table of made-up processes whose lazy facts are given up front, so nothing is read
+    /// from the OS (the pids may belong to real processes).
+    #[cfg(test)]
+    pub(crate) fn synthetic(taken_at: SystemTime, procs: Vec<SyntheticProcess>) -> Self {
+        let mut lazy: HashMap<ProcKey, SyntheticProcess> =
+            procs.into_iter().map(|p| (p.info.key, p)).collect();
+        let infos = lazy.values().map(|p| p.info.clone()).collect();
+        Self::link(infos, taken_at, |info| {
+            let given = lazy.remove(&info.key);
+            let (cmdline, cwd) = given.map_or((None, None), |p| (p.cmdline, p.cwd));
+            Process {
+                parent: None,
+                children: Vec::new(),
+                env_allow: Arc::default(),
+                cmdline: OnceCell::from(cmdline),
+                cwd: OnceCell::from(cwd),
+                sockets: OnceCell::from(None),
+                info,
+            }
+        })
+    }
+
+    /// Builds the table from the processes' base facts, linking each to its parent and
+    /// children.
+    fn link(
+        infos: Vec<BaseInfo>,
+        taken_at: SystemTime,
+        mut make: impl FnMut(BaseInfo) -> Process,
+    ) -> Self {
         let by_pid: HashMap<i32, ProcKey> = infos.iter().map(|i| (i.key.pid, i.key)).collect();
         let parent_of = |info: &BaseInfo| {
             by_pid
@@ -112,24 +159,19 @@ impl ProcessTable {
             .map(|info| {
                 let mut kids = children.remove(&info.key).unwrap_or_default();
                 kids.sort_unstable();
-                let process = Process {
-                    parent: parent_of(&info),
-                    children: kids,
-                    env_allow: Arc::clone(&env_allow),
-                    cmdline: OnceCell::new(),
-                    cwd: OnceCell::new(),
-                    sockets: OnceCell::new(),
-                    info,
-                };
+                let parent = parent_of(&info);
+                let mut process = make(info);
+                process.parent = parent;
+                process.children = kids;
                 (process.info.key, process)
             })
             .collect();
 
-        Ok(Self {
+        Self {
             procs,
             by_pid,
             taken_at,
-        })
+        }
     }
 
     pub fn get(&self, key: ProcKey) -> Option<&Process> {
@@ -146,6 +188,12 @@ impl ProcessTable {
 
     pub fn parent_of(&self, process: &Process) -> Option<&Process> {
         process.parent.and_then(|key| self.procs.get(&key))
+    }
+
+    /// The parent, its parent and so on, nearest first. Bounded by the table's size, so equal
+    /// start times cannot make it loop.
+    pub fn ancestors_of<'a>(&'a self, process: &'a Process) -> impl Iterator<Item = &'a Process> {
+        std::iter::successors(self.parent_of(process), |p| self.parent_of(p)).take(self.procs.len())
     }
 
     pub fn children_of<'a>(&'a self, process: &'a Process) -> impl Iterator<Item = &'a Process> {
