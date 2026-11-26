@@ -1,8 +1,9 @@
-//! The only OS-specific code: reading processes and signalling them.
+//! The only OS-specific code: reading processes, signalling them, notifying the user and
+//! installing the LaunchAgent.
 //!
 //! The seam for another OS is this module's function set (`list_pids`, `base_info`, `cmdline`,
-//! `cwd`, `sockets`, `signal`, `alive`, `current_pid`, `current_uid`), implemented per OS in a submodule;
-//! the types below are shared.
+//! `cwd`, `sockets`, `signal`, `alive`, `current_pid`, `current_uid`, `notify`, `launchd`),
+//! implemented per OS in a submodule; the types below are shared.
 //! This is the only module allowed `unsafe`.
 //!
 //! Every fact the OS refuses (another uid's process, a pid that vanished) is `None`, never a
@@ -12,11 +13,17 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::time::Duration;
 
 #[cfg(target_os = "macos")]
+pub mod launchd;
+#[cfg(target_os = "macos")]
 mod macos;
+#[cfg(target_os = "macos")]
+mod notify;
 #[cfg(target_os = "macos")]
 pub use macos::{
     alive, base_info, cmdline, current_pid, current_uid, cwd, list_pids, signal, sockets,
 };
+#[cfg(target_os = "macos")]
+pub use notify::notify;
 
 /// The identity of a process: a pid whose current start time differs is a different process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

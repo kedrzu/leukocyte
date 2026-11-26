@@ -18,6 +18,9 @@ pub struct FactStore {
     repos: Repos,
     tracked: HashMap<ProcKey, Tracked>,
     last_scan: Option<SystemTime>,
+    /// The registered repos changed: the next update attributes again the processes that
+    /// have no repo.
+    reattribute: bool,
 }
 
 /// What is remembered about one process.
@@ -38,7 +41,16 @@ impl FactStore {
             repos,
             tracked: HashMap::new(),
             last_scan: None,
+            reattribute: false,
         }
+    }
+
+    /// Replaces the registered repos. The next [`update`](Self::update) attributes the tracked
+    /// processes without a repo again, so a newly registered repo gets its running processes;
+    /// a process keeps a repo it already has.
+    pub fn set_repos(&mut self, repos: Repos) {
+        self.repos = repos;
+        self.reattribute = true;
     }
 
     /// Takes in a new snapshot: forgets processes that are gone, records origin and repo of
@@ -47,6 +59,10 @@ impl FactStore {
         let now = table.taken_at();
         let interval = self.last_scan.and_then(|t| now.duration_since(t).ok());
         self.tracked.retain(|key, _| table.get(*key).is_some());
+        let mut resolver = Resolver::default();
+        if std::mem::take(&mut self.reattribute) {
+            self.reattribute_unattributed(table, &mut resolver);
+        }
 
         let mut new: Vec<&Process> = table
             .iter()
@@ -54,7 +70,6 @@ impl FactStore {
             .collect();
         // Parents before children, so a child inherits from a parent already recorded.
         new.sort_unstable_by_key(|p| (p.key().start, p.key().pid));
-        let mut resolver = Resolver::default();
         for process in &new {
             let tracked = self.first_sight(table, process, &mut resolver, now);
             self.tracked.insert(process.key(), tracked);
@@ -104,6 +119,23 @@ impl FactStore {
         let origin = origin::first_sight(table, process, |key| {
             self.tracked.get(&key).and_then(|t| t.origin)
         });
+        let repo = self.attribute(process, origin, resolver);
+        Tracked {
+            usage: None,
+            cpu: None,
+            last_active: now,
+            origin,
+            repo,
+        }
+    }
+
+    /// The repo of `process`: its cwd's, else its parent's, else its origin's.
+    fn attribute(
+        &self,
+        process: &Process,
+        origin: Option<OriginRecord>,
+        resolver: &mut Resolver,
+    ) -> Option<RepoId> {
         let inherited = || {
             let parent = process.parent().and_then(|key| self.tracked.get(&key));
             let from_origin = origin.and_then(|o| self.tracked.get(&o.origin));
@@ -111,16 +143,25 @@ impl FactStore {
                 .and_then(|t| t.repo.clone())
                 .or_else(|| from_origin.and_then(|t| t.repo.clone()))
         };
-        let repo = process
+        process
             .cwd()
             .and_then(|cwd| resolver.resolve(&self.repos, cwd))
-            .or_else(inherited);
-        Tracked {
-            usage: None,
-            cpu: None,
-            last_active: now,
-            origin,
-            repo,
+            .or_else(inherited)
+    }
+
+    /// Attributes again every tracked process without a repo, parents before children.
+    fn reattribute_unattributed(&mut self, table: &ProcessTable, resolver: &mut Resolver) {
+        let mut pending: Vec<&Process> = table
+            .iter()
+            .filter(|p| self.tracked.get(&p.key()).is_some_and(|t| t.repo.is_none()))
+            .collect();
+        pending.sort_unstable_by_key(|p| (p.key().start, p.key().pid));
+        for process in pending {
+            let origin = self.tracked.get(&process.key()).and_then(|t| t.origin);
+            let repo = self.attribute(process, origin, resolver);
+            if let Some(tracked) = self.tracked.get_mut(&process.key()) {
+                tracked.repo = repo;
+            }
         }
     }
 
@@ -691,6 +732,25 @@ mod tests {
         for pid in [90, 91, 92, 93] {
             assert_eq!(facts(&store, &t, pid).repo, Some(id.clone()), "pid {pid}");
         }
+    }
+
+    #[test]
+    fn a_repo_registered_later_gets_its_running_processes() {
+        let (_tmp, root, repos, id) = repo_dir();
+        let mut store = FactStore::new(Repos::default());
+        let procs = || {
+            vec![
+                launchd(),
+                proc(70, 70, 1, "node").cwd(&root),
+                proc(71, 71, 70, "chrome").cwd(Path::new("/")),
+            ]
+        };
+        let t = scan(&mut store, 100, procs());
+        assert_eq!(facts(&store, &t, 70).repo, None);
+        store.set_repos(repos);
+        let t = scan(&mut store, 105, procs());
+        assert_eq!(facts(&store, &t, 70).repo, Some(id.clone()));
+        assert_eq!(facts(&store, &t, 71).repo, Some(id));
     }
 
     #[test]
