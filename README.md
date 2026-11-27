@@ -155,11 +155,21 @@ each process. Of the footprint, about 2.3 MB is live heap: the last scan's proce
 (about 0.3 MB), the redaction regexes and the file-system watch. The rest is allocator slack and
 the dirty pages of the system libraries the file-system watch loads.
 
+The installed app, measured 2026-11-27 with `scripts/footprint.sh <pid> 10`: the signed, notarized
+universal `Leukocyte.app` started by its LaunchAgent, about 990 processes, observe mode, no rules files
+loaded:
+
+| Measure        | min     | avg     | max     |
+| -------------- | ------- | ------- | ------- |
+| RSS            | 14.7 MB | 15.3 MB | 15.9 MB |
+| phys_footprint | 4.5 MB  | 4.9 MB  | 5.4 MB  |
+| CPU, one core  | 0.30 %  | 0.45 %  | 0.50 %  |
+
 RSS counts the shared, clean pages of system libraries; `phys_footprint` is the memory the daemon
 itself dirties, what Activity Monitor shows as Memory.
 
 The budget is `phys_footprint` at most 8 MB and CPU under 1 % of one core on about 1000 processes.
-RSS is not budgeted: it stays around 13 MB whatever the daemon does.
+RSS is not budgeted: it stays between 13 and 16 MB whatever the daemon does.
 
 ## Verifying an install
 

@@ -60,9 +60,9 @@ C, plus B's upgrade marker in the cask (the marker is superseded: see the last a
   and the argv of `security`.
 - The script checks after assembling that the bundle's `CFBundleShortVersionString` and
   `CFBundleVersion` equal `Cargo.toml`'s version.
-- `scripts/icon.sh` renders `packaging/icon.svg` into `packaging/leukocyte.icns` with
-  `rsvg-convert` when present, else Quick Look and `sips`; it runs when the SVG changes, and the
-  `.icns` is committed.
+- `scripts/icon.sh` renders `packaging/icon.svg` into `packaging/leukocyte.icns` with AppKit
+  (`scripts/lib/render-svg.swift`); it runs when the SVG changes, and the `.icns` is committed. See
+  the icon addendum below for why not `rsvg-convert` or Quick Look.
 - CI's `bundle` job (macOS, on PRs and `main`) runs the keychain test and an ad-hoc universal
   `bundle.sh`, checks the `Info.plist` and both architectures, and uploads the zip. The release
   itself is a manually dispatched workflow that runs `bundle.sh --notarize` with the secrets.
@@ -144,3 +144,20 @@ daemon keeps running from the deleted binary; `leukocyte uninstall` before it st
 once, and the caveats say so. The acceptance criterion for uninstall reads accordingly: no running
 daemon and no login agent left behind, within two minutes. If the user deletes the app by hand, the
 same cleanup runs.
+
+## Addendum: the icon follows Apple's grid and keeps its transparency (2026-11-27)
+
+On macOS 26.6.2 the first signed app's notification showed the icon small, on a white plate. Probed on
+this machine (2026-11-27), rendering icons through `NSWorkspace.icon(forFile:)`:
+
+- The committed `.icns` had opaque white corners: `rsvg-convert` was absent, and the Quick Look
+  fallback (`qlmanage -t`) fills the background white.
+- macOS 26 sets an `.icns`-only icon (no `CFBundleIconName`) on a plate unless its opaque area is
+  Apple's macOS tile: 824 px centred on the 1024 canvas, with continuous (squircle) corners. A
+  transparent icon with a plain rounded rectangle of the same size was still plated; the same
+  artwork masked with a shipping app's tile alpha was not. A continuous-corner path of radius 186
+  matches that mask to within anti-aliasing (64 of 40 000 corner pixels).
+
+So `packaging/icon.svg` draws its background as that path, with the artwork scaled by 824/976, and
+`scripts/icon.sh` rasterises with AppKit's SVG support onto a transparent bitmap, one renderer on
+every machine. The resulting icon renders without a plate.

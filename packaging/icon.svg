@@ -12,7 +12,11 @@
     <clipPath id="cellClip"><use href="#membrane"/></clipPath>
     <clipPath id="beanClip"><path d="M418 347 C352 345 308 401 305 482 C301 569 349 636 425 657 C497 676 559 641 574 586 C585 545 563 514 523 494 C483 474 454 451 452 418 C450 382 453 351 418 347 Z"/></clipPath>
   </defs>
-  <path fill="url(#background)" d="M220 24h584c121 0 196 75 196 196v584c0 121-75 196-196 196H220C99 1000 24 925 24 804V220C24 99 99 24 220 24Z"/>
+  <!-- Apple's macOS icon grid: an 824 px tile centred on the 1024 canvas, with continuous
+       (squircle) corners of radius 186, fitted to a shipping app's icon mask. macOS 26 sets an icon of
+       any other shape on a white plate. The artwork is scaled by the same 824/976. -->
+  <path fill="url(#background)" d="M384.33 100 L639.67 100 C721.54 100 762.48 100 806.54 113.93 C854.65 131.44 892.56 169.35 910.07 217.46 C924 261.52 924 302.46 924 384.33 L924 639.67 C924 721.54 924 762.48 910.07 806.54 C892.56 854.65 854.65 892.56 806.54 910.07 C762.48 924 721.54 924 639.67 924 L384.33 924 C302.46 924 261.52 924 217.46 910.07 C169.35 892.56 131.44 854.65 113.93 806.54 C100 762.48 100 721.54 100 639.67 L100 384.33 C100 302.46 100 261.52 113.93 217.46 C131.44 169.35 169.35 131.44 217.46 113.93 C261.52 100 302.46 100 384.33 100 Z"/>
+  <g transform="translate(512 512) scale(0.844262) translate(-512 -512)">
   <use href="#membrane" fill="#C9B7EC"/>
   <circle cx="512" cy="512" r="282" fill="url(#body)"/>
   <g clip-path="url(#cellClip)" fill="none" stroke="#FFFFFF" stroke-opacity=".58" stroke-width="13" stroke-linecap="round">
@@ -27,4 +31,5 @@
       </g>
     </g>
   <g fill="#855396" fill-opacity=".54"><circle cx="600" cy="350" r="12"/><circle cx="651" cy="394" r="9"/><circle cx="679" cy="455" r="12"/><circle cx="680" cy="523" r="9"/><circle cx="655" cy="586" r="12"/><circle cx="607" cy="633" r="9"/></g>
+  </g>
 </svg>
