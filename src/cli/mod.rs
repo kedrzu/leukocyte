@@ -135,7 +135,7 @@ fn fail<T>(message: impl Into<String>) -> Result<T, CliError> {
 pub fn run() -> ExitCode {
     let cli = Cli::parse();
     match dispatch(cli.command) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(e) => {
             eprintln!("leukocyte: {e}");
             ExitCode::FAILURE
@@ -143,7 +143,7 @@ pub fn run() -> ExitCode {
     }
 }
 
-fn dispatch(command: Cmd) -> Result<(), CliError> {
+fn dispatch(command: Cmd) -> Result<ExitCode, CliError> {
     let paths = Paths::from_env()?;
     match command {
         Cmd::Install { no_prompt } => install(&paths, no_prompt),
@@ -171,12 +171,14 @@ fn dispatch(command: Cmd) -> Result<(), CliError> {
         Cmd::Check { rules } => check(rules.as_deref()),
         Cmd::Log { follow } => log(&paths, follow),
         Cmd::Mode { mode } => set_mode(&paths, mode.into()),
-        Cmd::Daemon => Ok(run_daemon()?),
+        // The only command whose exit code varies: launchd restarts a non-zero exit.
+        Cmd::Daemon => return Ok(run_daemon()?.into()),
         Cmd::RequestNotifications => {
             println!("{}", notify::request_authorization(notify::REQUEST_WAIT));
             Ok(())
         }
-    }
+    }?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Sends `request` to the daemon; an error response becomes the error.

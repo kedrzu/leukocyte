@@ -281,7 +281,7 @@ fn prompt_plan(no_prompt: bool, exe: &Path, out: &Path) -> PromptPlan {
 }
 
 /// The `.app` directory that contains `exe`, if any.
-fn app_bundle_of(exe: &Path) -> Option<PathBuf> {
+pub fn app_bundle_of(exe: &Path) -> Option<PathBuf> {
     exe.ancestors()
         .skip(1)
         .find(|dir| dir.extension().is_some_and(|ext| ext == "app"))

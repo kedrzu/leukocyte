@@ -15,9 +15,11 @@ brew install --cask kedrzu/tap/leukocyte   # Leukocyte.app, signed and notarized
 leukocyte install                          # writes and starts the LaunchAgent
 ```
 
-`leukocyte uninstall` stops the daemon and removes the LaunchAgent. `brew upgrade` restarts a running
-daemon from the new app; `brew uninstall --cask leukocyte` also stops it and removes the LaunchAgent,
-and `--zap` deletes the data, logs and personal rules too.
+`leukocyte uninstall` stops the daemon and removes the LaunchAgent. After `brew upgrade` the running
+daemon sees its app replaced and restarts from the new one within about 10 seconds. After
+`brew uninstall --cask leukocyte` it sees the app gone, removes its LaunchAgent and exits within about
+two minutes; run `leukocyte uninstall` first to stop it at once. `--zap` deletes the data, logs and
+personal rules too.
 
 For development, `cargo install --git https://github.com/kedrzu/leukocyte` builds a bare binary. It
 runs the daemon the same way but cannot post notifications (see below).

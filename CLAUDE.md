@@ -15,7 +15,8 @@ One binary crate (daemon and CLI). Planned modules, added task by task under `sr
 - `rules` Luau sandbox, schema, `judge`.
 - `engine` prefilter, `when`/`idle`, `judge`, merge, quarantine, fuse, actions.
 - `kill` subtree termination with identity re-check.
-- `daemon` the 5 s loop, reload, unix socket, JSONL action log.
+- `daemon` the 5 s loop, reload, unix socket, JSONL action log, and following its own executable
+  (restart when the app is replaced, removal of the LaunchAgent when it is gone).
 - `cli` clap subcommands.
 
 A small Bun sidecar in `tools/` (root `package.json`, TypeScript, not shipped) holds the release secrets:

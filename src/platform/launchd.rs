@@ -13,6 +13,7 @@ use std::process::{Command, Stdio};
 pub const LABEL: &str = "dev.leukocyte.daemon";
 
 const LAUNCHCTL: &str = "/bin/launchctl";
+const PLUTIL: &str = "/usr/bin/plutil";
 
 /// Writes `~/Library/LaunchAgents/dev.leukocyte.daemon.plist`, running the current executable
 /// as `daemon` with its output in `log`, and bootstraps it into the user's GUI domain. An
@@ -48,6 +49,62 @@ pub fn uninstall() -> io::Result<()> {
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),
     }
+}
+
+/// What [`remove_if_owned`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Removal {
+    /// The plist ran `exe` and is gone.
+    Removed,
+    /// There was no plist.
+    NotInstalled,
+    /// The plist runs another program, given here; it was left in place.
+    NotOwned(String),
+}
+
+/// Removes the agent's plist, but only when its program (`ProgramArguments[0]`) is `exe`: the
+/// daemon of a removed app cleans up after itself without deleting the agent of another install.
+/// It does not boot the agent out: the caller is that agent, and exits after this.
+pub fn remove_if_owned(exe: &Path) -> io::Result<Removal> {
+    refuse_if_isolated(std::env::var_os("LEUKOCYTE_HOME"))?;
+    remove_plist_if_owned(&plist_path()?, exe)
+}
+
+fn remove_plist_if_owned(plist: &Path, exe: &Path) -> io::Result<Removal> {
+    match fs::symlink_metadata(plist) {
+        Ok(_) => {}
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Removal::NotInstalled),
+        Err(e) => return Err(e),
+    }
+    let program = program_of(plist)?;
+    if Path::new(&program) != exe {
+        return Ok(Removal::NotOwned(program));
+    }
+    match fs::remove_file(plist) {
+        Ok(()) => Ok(Removal::Removed),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Removal::NotInstalled),
+        Err(e) => Err(e),
+    }
+}
+
+/// The plist's `ProgramArguments[0]`.
+fn program_of(plist: &Path) -> io::Result<String> {
+    let output = Command::new(PLUTIL)
+        .args(["-extract", "ProgramArguments.0", "raw", "-o", "-"])
+        .arg(plist)
+        .stdin(Stdio::null())
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "no ProgramArguments in {} ({}): {}",
+            plist.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    let text = String::from_utf8(output.stdout).map_err(io::Error::other)?;
+    // `raw` ends the value with one newline.
+    Ok(text.strip_suffix('\n').unwrap_or(&text).to_owned())
 }
 
 fn refuse_if_isolated(leukocyte_home: Option<OsString>) -> io::Result<()> {
@@ -150,6 +207,42 @@ mod tests {
         assert!(refuse_if_isolated(Some("/tmp/x".into())).is_err());
         assert!(refuse_if_isolated(Some("".into())).is_ok());
         assert!(refuse_if_isolated(None).is_ok());
+    }
+
+    #[test]
+    fn only_a_plist_that_runs_this_executable_is_removed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let log = Path::new("/tmp/daemon.log");
+        let exe = Path::new("/Applications/Leuko & co.app/Contents/MacOS/leukocyte");
+        let plist = tmp.path().join("agent.plist");
+
+        // Another install's agent stays.
+        let other = "/opt/homebrew/bin/leukocyte";
+        fs::write(&plist, render(Path::new(other), log)).unwrap();
+        assert_eq!(
+            remove_plist_if_owned(&plist, exe).unwrap(),
+            Removal::NotOwned(other.to_owned())
+        );
+        assert!(plist.exists());
+
+        // A plist without a program is an error, and stays.
+        fs::write(&plist, "<plist version=\"1.0\"><dict/></plist>").unwrap();
+        assert!(remove_plist_if_owned(&plist, exe).is_err());
+        assert!(plist.exists());
+
+        // This executable's agent goes.
+        fs::write(&plist, render(exe, log)).unwrap();
+        assert_eq!(
+            remove_plist_if_owned(&plist, exe).unwrap(),
+            Removal::Removed
+        );
+        assert!(!plist.exists());
+
+        // No plist: nothing to do.
+        assert_eq!(
+            remove_plist_if_owned(&plist, exe).unwrap(),
+            Removal::NotInstalled
+        );
     }
 
     #[test]

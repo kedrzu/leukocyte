@@ -10,6 +10,7 @@
 
 pub mod config;
 pub mod ipc;
+mod lifecycle;
 mod log;
 mod redact;
 mod watch;
@@ -36,14 +37,15 @@ use ipc::{
     CheckEvalError, CheckReply, Command, EvalErrorStatus, ExplanationReply, FuseStatus,
     InFlightStatus, RepoStatus, Request, Response, ScanStatus, SourceStatus, StatusReply,
 };
+pub use lifecycle::Exit;
 use log::{ActionLog, Event, Failed, KillReportFields, Skipped, rfc3339};
 use redact::Redactor;
 use watch::{Fingerprint, Refresh, RulesFile, Watches};
 
 /// Runs the daemon until the process is killed: the paths and scan interval from the
 /// environment, the socket, the file-system watch, and the scan loop on the calling thread.
-/// Returns only when it cannot start.
-pub fn run_daemon() -> io::Result<()> {
+/// Returns an error when it cannot start, and an [`Exit`] when its app was upgraded or removed.
+pub fn run_daemon() -> io::Result<Exit> {
     let paths = Paths::from_env()?;
     let interval = config::scan_interval(paths.isolated, std::env::var_os(config::INTERVAL_ENV));
     let (wake_tx, wake_rx) = mpsc::channel::<Wake>();
@@ -66,6 +68,7 @@ pub fn run_daemon() -> io::Result<()> {
         Notifier::System(platform::notify::Notifier::for_this_process())
     };
     let mut daemon = Daemon::new(paths.clone(), notifier, watches)?;
+    let mut self_watch = lifecycle::SelfWatch::for_this_process(paths.isolated);
 
     let listener = ipc::bind(&paths.socket())?;
     let status = daemon.status_handle();
@@ -86,6 +89,9 @@ pub fn run_daemon() -> io::Result<()> {
 
     loop {
         let started = Instant::now();
+        if let Some(exit) = self_watch.as_mut().and_then(lifecycle::SelfWatch::check) {
+            return Ok(exit);
+        }
         daemon.tick();
         let next = started + interval;
         while let Some(left) = next.checked_duration_since(Instant::now()) {

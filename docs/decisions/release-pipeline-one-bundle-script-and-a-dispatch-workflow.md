@@ -44,7 +44,7 @@ A design panel proposed three shapes:
 
 ## Decision
 
-C, plus B's upgrade marker in the cask.
+C, plus B's upgrade marker in the cask (the marker is superseded: see the last addendum).
 
 - `scripts/bundle.sh [--notarize]` builds both targets, `lipo`s them, assembles
   `target/bundle/Leukocyte.app` from `packaging/Info.plist` (`@VERSION@` filled from
@@ -90,8 +90,9 @@ The publishing steps follow notarization in the same job, so no tag exists befor
 build. Steps: `../releasing.md`.
 
 The cask (`packaging/leukocyte.rb.tmpl`) installs `Leukocyte.app`, links its binary onto `PATH`, and
-its `uninstall` stanza boots the agent out and deletes its plist. It does not install the agent:
-the user runs `leukocyte install`, which asks for notification permission.
+its `uninstall` stanza boots the agent out and deletes its plist (removed by the next addendum). It
+does not install the agent: the user runs `leukocyte install`, which asks for notification
+permission.
 
 An upgrade must restart a running agent from the new app. Read in Homebrew 7.0.16's source
 (`cask/upgrade.rb`, `cask/installer.rb`, 2026-11-27): `brew upgrade` runs the old cask's uninstall
@@ -109,3 +110,37 @@ upgrade. The steps cannot replace them here: they run in Homebrew's sandbox with
 (`run_cask_sandbox` in `cask/artifact/abstract_artifact.rb`), where `leukocyte install` would write
 the plist into the wrong home, and their guards test only whether a path exists, so the marker's
 age cannot be checked. Revisit when Homebrew disables flight blocks.
+
+## Addendum: the daemon follows its own executable; the cask has no hooks (2026-11-27)
+
+The flight blocks above are replaced, not kept until Homebrew disables them: every install and
+upgrade printed the deprecation warning, and `brew style` failed on the cask. Read in Homebrew
+7.0.16's source (2026-11-27): `brew upgrade --cask` runs the old cask's `uninstall` stanza, then moves
+the new app in, and no stanza can tell an upgrade from an uninstall, so an `uninstall launchctl:` or
+`delete:` of the agent also stops it on every upgrade. The `*_steps` replacements cannot carry the
+logic either (sandbox, temporary `HOME`, path-existence guards only).
+
+So the cask keeps only `app`, `binary`, `depends_on`, `zap trash:` and a `caveats` text, and the
+daemon owns its lifecycle (`src/daemon/lifecycle.rs`). At startup it records its executable's
+canonical path and identity (device, inode, size, mtime). Every scan it stats the path again:
+
+- **Replaced:** a new identity, the same on 2 scans in a row, makes it log `binary replaced,
+  restarting` and exit 75; launchd's `KeepAlive { SuccessfulExit = false }` starts the new binary.
+- **Missing:** missing on every scan for 120 s makes it remove the LaunchAgent plist, only when the
+  plist's `ProgramArguments[0]` is this executable, log `app removed, uninstalling the login agent`
+  and exit 0, which launchd does not restart; without the plist it does not load at the next login.
+  An upgrade's gap between removing the old app and moving in the new one is seconds. Config, rules
+  and logs stay (that is `zap`). A failed removal keeps the daemon running and is retried after
+  another 120 s.
+- **Off** when `LEUKOCYTE_HOME` is set or the executable is not inside an `.app`, so tests and
+  `cargo` builds never restart or remove anything.
+
+Probed on this machine (2026-11-27), with a copied app and a plist under a temporary `HOME`: moving a
+new binary over the running one exited 75 within one scan pair; deleting the app exited 0 after
+122 s with the plist gone.
+
+Trade-off: cleanup after `brew uninstall` is eventual, up to about two minutes, during which the old
+daemon keeps running from the deleted binary; `leukocyte uninstall` before it stops the agent at
+once, and the caveats say so. The acceptance criterion for uninstall reads accordingly: no running
+daemon and no login agent left behind, within two minutes. If the user deletes the app by hand, the
+same cleanup runs.

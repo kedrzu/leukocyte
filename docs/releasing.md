@@ -15,7 +15,9 @@ The version is `Cargo.toml`'s. Design: `decisions/release-pipeline-one-bundle-sc
    commit. It runs on any branch (`--ref <branch>`).
 3. Release: `gh workflow run release.yml` (on `main`).
 4. Confirm: the run is green, `gh release view v<version>` lists `Leukocyte-<version>.zip`, and
-   `kedrzu/homebrew-tap` has a `leukocyte <version>` commit. `brew upgrade --cask leukocyte` picks it up.
+   `kedrzu/homebrew-tap` has a `leukocyte <version>` commit. `brew upgrade --cask leukocyte` picks it up,
+   and a running daemon restarts from the new app by itself (the cask has no install hooks: the
+   daemon follows its own executable, `src/daemon/lifecycle.rs`).
 
 `scripts/release-preflight.sh` refuses the run before anything is built when the tag `v<version>`
 already exists (dry run or not) or when a real release runs on a ref other than `main`.
