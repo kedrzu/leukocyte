@@ -47,6 +47,7 @@ leukocyte status              # mode, last scan, loaded rules files and their er
 leukocyte log [-f]            # the action log: kills, would-kills, reports, kill reports, errors
 leukocyte keep <pid>          # never kill this process (until it exits or the daemon restarts)
 leukocyte mode enforce        # start killing; `mode observe` goes back to logging only
+leukocyte guide               # how to write rules for a repo (for you or an agent)
 ```
 
 Rules files reload on save. A file that fails to load keeps its previous version in force, and the
@@ -55,14 +56,14 @@ error shows in `status`, the log and a notification.
 ## Writing rules
 
 A repo's rules live in `<repo>/.leukocyte/rules.lua` and apply only to processes whose working
-directory is inside that repo (any worktree counts). Personal rules live in
-`~/.config/leukocyte/rules.lua` and apply to all your processes. Examples:
-[`examples/repo-rules.lua`](examples/repo-rules.lua), [`examples/personal-rules.lua`](examples/personal-rules.lua).
+directory is inside that repo (any worktree counts); personal rules live in
+`~/.config/leukocyte/rules.lua`. A rule names the processes it matches (a substring or regex of the
+command line), the condition (abandoned by its agent, orphaned, idle for a while) and optionally a
+Luau `judge`:
 
 ```lua
 return {
   api = 1,
-  env = { "NODE_ENV" },      -- optional: variables rules may read as p.env.NAME
   rules = {
     { name = "orphaned nx executors", match = "nx/dist/bin/run-executor.js",
       when = "abandoned", idle = "20m", enforce = true },
@@ -70,55 +71,10 @@ return {
 }
 ```
 
-A file returns `api = 1`, `rules`, and optionally `env`. Unknown keys are load errors.
-
-| Rule key     | Default       | Meaning                                                                                                                                     |
-| ------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`       | required      | Unique within the file; shown in the log.                                                                                                   |
-| `match`      | one of the two | A substring of the command line (the executable, a space, argv joined by spaces), at least 4 characters.                                   |
-| `re`         | one of the two | A regex over the same string; at least 4 characters and must not match the empty string.                                                 |
-| `when`       | `"abandoned"` | `"abandoned"`: orphaned and its origin is known to be dead. `"orphaned"`: reparented to launchd (ppid 1). `"always"`: no condition.         |
-| `idle`       | none          | The whole subtree has used under 0.5 % of a core and under 1 MiB/s of disk for at least this long.                                        |
-| `quarantine` | `"5m"`        | A kill verdict must hold this long, scan after scan, before the kill is issued.                                                             |
-| `grace`      | `"5s"`        | Time between the first signal and `SIGKILL`.                                                                                                |
-| `signal`     | `"TERM"`      | The first signal: `"TERM"`, `"INT"`, `"HUP"` or `"QUIT"`.                                                                                   |
-| `enforce`    | `false`       | Without it a kill is only logged as "would kill", whatever the mode.                                                                        |
-| `judge`      | none          | `function(p)` returning `"kill"`, `"report"` or `"protect"` and an optional reason, or `nil` to keep the declarative verdict.               |
-
-Durations are `"<n>s|m|h|d"` or combinations such as `"1h30m"`.
-
-The declarative part is a kill when `when` holds and `idle` is met. `judge` is then called for every
-process the matcher hits, whether or not that holds, and a verb it returns replaces the declarative
-verdict. A judge has 10 ms and the file's Luau state 8 MiB; a judge that errors, runs over budget or
-returns garbage gives no verdict, and no verdict never kills. The sandbox has no `io`, `os`,
-`require` or `debug`.
-
-`p`, the process a judge sees (durations in seconds, sizes in bytes; a fact that cannot be read is
-`nil`, and so is a field not in this list, so arithmetic on a misspelt field errors):
-
-| Field                 | Meaning                                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `pid`, `ppid`         | Process and parent id.                                                                                        |
-| `exe`, `argv`, `cmd`  | Executable path, argument list, and the command line `match` runs on.                                         |
-| `cwd`                 | Working directory.                                                                                            |
-| `age`                 | Time since it started.                                                                                        |
-| `rss`, `cpu`          | Resident memory; CPU over the last scan in percent of one core.                                               |
-| `idle`                | How long its whole subtree has been idle (see `idle` above), counted from when the daemon first saw it.       |
-| `orphan`              | Reparented to launchd.                                                                                        |
-| `session_alive`       | Whether its session leader still runs.                                                                        |
-| `origin`              | `{ kind = "agent" or "terminal", alive = true/false }`; both `nil` when the origin is unknown.                |
-| `repo`                | Root of the registered repo it belongs to.                                                                    |
-| `env`                 | The variables named in the file's `env` (identity variables such as `CLAUDE_PID` are never visible).          |
-| `clients`             | TCP connections from clients to its listening ports.                                                          |
-| `listening`           | Its listening TCP ports.                                                                                      |
-| `parent`, `children`  | Neighbouring processes, as the same kind of view.                                                             |
-| `newer_twins`         | Live processes with the same executable and argv, in the same repo, started after it.                         |
-
-**Origin.** When the daemon first sees a process with its parent chain intact, it records the nearest
-agent ancestor (argv0 `claude`, `codex`, `cursor-agent`, `aider`, `opencode`), or else the topmost
-ancestor holding its terminal. A process first seen already orphaned gets its origin from the
-agent's identity environment (`CLAUDE_PID`, `PASEO_AGENT_ID`), if it has one. Otherwise its origin is
-unknown, and an unknown origin is never dead: `abandoned` does not hold.
+The guide, with the workflow for writing rules for a repo, patterns and the full reference, is
+[`docs/writing-rules.md`](docs/writing-rules.md); `leukocyte guide` prints it, so an agent working in
+any repo can read it. Examples: [`examples/repo-rules.lua`](examples/repo-rules.lua),
+[`examples/personal-rules.lua`](examples/personal-rules.lua).
 
 ## Safety
 

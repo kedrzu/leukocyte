@@ -706,3 +706,39 @@ fn a_stashed_procview_is_dead_in_the_next_evaluation() {
     let verdict = w.eval(&set, 30).unwrap().unwrap();
     assert_eq!(verdict.verb, Verb::Protect, "{verdict:?}");
 }
+
+#[test]
+fn the_guide_and_the_examples_load() {
+    let mut blocks = Vec::new();
+    let mut lines = GUIDE.lines();
+    while let Some(line) = lines.next() {
+        if line.trim() == "```lua" {
+            let block: Vec<&str> = lines.by_ref().take_while(|l| l.trim() != "```").collect();
+            blocks.push(block.join("\n"));
+        }
+    }
+    assert!(
+        blocks.len() >= 4,
+        "the guide's lua blocks: {}",
+        blocks.len()
+    );
+    for (i, block) in blocks.iter().enumerate() {
+        if let Err(e) = RuleSet::load(&format!("guide block {i}"), block.as_bytes()) {
+            panic!("{e}\n{block}");
+        }
+    }
+    for (name, source) in [
+        (
+            "repo-rules.lua",
+            include_str!("../../examples/repo-rules.lua"),
+        ),
+        (
+            "personal-rules.lua",
+            include_str!("../../examples/personal-rules.lua"),
+        ),
+    ] {
+        if let Err(e) = RuleSet::load(name, source.as_bytes()) {
+            panic!("{e}");
+        }
+    }
+}
