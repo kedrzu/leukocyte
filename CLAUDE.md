@@ -24,6 +24,11 @@ One binary crate (daemon and CLI). Planned modules, added task by task under `sr
 - `scripts/verify.sh` runs `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
   `cargo test`; stops at the first failure and prints `✗ verify FAILED at step: <name>`. CI runs it on
   `macos-latest`. `scripts/verify-scoped.sh` is the same for now.
+- `scripts/bundle.sh [--notarize]` builds the universal `target/bundle/Leukocyte.app` and its zip;
+  signing follows the environment (temporary keychain from `APPLE_CERTIFICATE`, login-keychain
+  `APPLE_SIGNING_IDENTITY`, or ad hoc). CI's `bundle` job runs it ad hoc with
+  `scripts/test-keychain.sh`. `scripts/icon.sh` renders `packaging/icon.svg` into the committed
+  `packaging/leukocyte.icns`. Design: `docs/decisions/release-pipeline-one-bundle-script-and-a-dispatch-workflow.md`.
 - Fix formatting with `cargo fmt --all`, never by hand.
 - Wrap noisy commands in a redirect to `.context/cmd-logs/<name>.log` and read the log selectively
   (grep, a line range), never whole: a long log is re-read on every later turn.

@@ -18,3 +18,26 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: scripts/verify.sh
+
+  bundle:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain and both targets (rust-toolchain.toml)
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - name: The signing keychain cleans up on every exit path
+        run: scripts/test-keychain.sh
+      - name: Build Leukocyte.app (universal, ad hoc signed)
+        run: scripts/bundle.sh
+      - name: Check the bundle
+        run: |
+          plutil -lint target/bundle/Leukocyte.app/Contents/Info.plist
+          archs="$(lipo -archs target/bundle/Leukocyte.app/Contents/MacOS/leukocyte)"
+          echo "archs: $archs"
+          [[ " $archs " == *" arm64 "* && " $archs " == *" x86_64 "* ]]
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Leukocyte-app
+          path: target/bundle/Leukocyte-*.zip
+          if-no-files-found: error

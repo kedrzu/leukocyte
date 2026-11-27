@@ -30,5 +30,9 @@ The gate before claiming work is done, and what CI runs on `macos-latest`. Fix e
 suppress a lint with `#[allow]`, never mark a test ignored to get green, never weaken an assertion.
 Read the failing step's first error line before changing anything.
 
+CI also runs a `bundle` job beside it: `scripts/test-keychain.sh` and an ad-hoc universal
+`scripts/bundle.sh`. Run both after touching `scripts/bundle.sh`, `scripts/lib/`, `packaging/` or
+the toolchain targets; `verify.sh` does not cover them.
+
 Tests that touch the machine (spawning process trees, sockets, launchd) set `LEUKOCYTE_HOME` to a
 temp directory so they never touch an installed daemon.

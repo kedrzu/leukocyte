@@ -1,0 +1,79 @@
+# Release pipeline: one bundle script and a dispatch workflow
+
+## Status
+
+Accepted, 2026-11-27.
+
+## Context
+
+Notifications work only from a Developer-ID-signed `Leukocyte.app` (see
+`native-notifications-from-the-daemon.md`), so a release is no longer a bare binary: it is a
+universal (arm64 + x86_64) bundle, signed with hardened runtime, notarized, stapled and zipped for a
+Homebrew cask. The same steps must run on the owner's Mac (identity in the login keychain) and in
+GitHub Actions (identity imported from secrets), and CI must prove the bundle builds on every PR
+without any secret.
+
+Signing credentials follow the owner's other apps: the Developer ID certificate as a base64 `.p12`
+with its password, and notarization with an Apple ID, an app-specific password and the team ID.
+`notarytool` takes that password only in argv or from a keychain profile it stored earlier.
+
+A design panel proposed three shapes:
+
+- **A, minimal:** one script whose behaviour is keyed entirely on environment variables, rendering
+  the icon from the SVG on every build.
+- **B, composable:** about 13 single-purpose scripts (build, lipo, assemble, keychain, sign,
+  notarize, staple, …) behind a 4-job release workflow, and an upgrade marker in the cask.
+- **C, common case:** one `scripts/bundle.sh [--notarize]`, `scripts/verify.sh` unchanged, the bundle
+  as a separate CI job, and the `.icns` rendered once and committed.
+
+## Options Considered
+
+- **A.** Fewest files, and one entry point for local and CI use. Rendering the icon on every build
+  needs a rasteriser on every machine (`rsvg-convert` is not part of macOS: absent on the owner's
+  Mac, 2026-11-27), so the icon in a bundle would depend on what the building machine has.
+  Keying notarization on the environment alone means a stray `APPLE_ID` turns a local build into a
+  slow notarization.
+- **B.** Each step testable and re-runnable alone, and jobs can be retried separately. The cost is
+  ~13 scripts passing state through files and env, a workflow that has to move artifacts between 4
+  jobs, and a keychain whose lifetime spans scripts, which makes "deleted on every exit path" hard
+  to guarantee. Most of the steps have one caller.
+- **C.** One script that owns the keychain's whole lifetime in a single `trap`; notarization is an
+  explicit flag; the icon is an input, not a build step; `verify.sh` stays fast and cargo-only
+  while the slower universal build runs in its own CI job. Steps cannot be re-run one by one: a
+  failed notarization reruns the build (a few minutes).
+
+## Decision
+
+C, plus B's upgrade marker in the cask.
+
+- `scripts/bundle.sh [--notarize]` builds both targets, `lipo`s them, assembles
+  `target/bundle/Leukocyte.app` from `packaging/Info.plist` (`@VERSION@` filled from
+  `cargo metadata`), signs, verifies, and zips to `target/bundle/Leukocyte-<version>.zip`. The
+  signing mode follows the environment: `APPLE_CERTIFICATE` → a temporary keychain;
+  `APPLE_SIGNING_IDENTITY` alone → the login keychain; neither → ad hoc. `--notarize` adds
+  `notarytool submit --wait`, `stapler staple`, an `spctl` check and a second zip.
+- The temporary keychain lives in `scripts/lib/keychain.sh`: passwords reach `security` on stdin
+  (`security -i`), never in argv; the decoded `.p12` is a 0600 file in a 0700 directory; an `EXIT`
+  trap (with `INT`/`TERM` mapped to exits) restores the user's keychain search list and deletes the
+  keychain. `scripts/test-keychain.sh` exercises it against a throwaway self-signed identity:
+  success, a failed step, a wrong `.p12` password and `SIGTERM`, checking the cleanup, the output
+  and the argv of `security`.
+- The script checks after assembling that the bundle's `CFBundleShortVersionString` and
+  `CFBundleVersion` equal `Cargo.toml`'s version.
+- `scripts/icon.sh` renders `packaging/icon.svg` into `packaging/leukocyte.icns` with
+  `rsvg-convert` when present, else Quick Look and `sips`; it runs when the SVG changes, and the
+  `.icns` is committed.
+- CI's `bundle` job (macOS, on PRs and `main`) runs the keychain test and an ad-hoc universal
+  `bundle.sh`, checks the `Info.plist` and both architectures, and uploads the zip. The release
+  itself is a manually dispatched workflow that runs `bundle.sh --notarize` with the secrets.
+
+## Consequences
+
+- One command builds a release locally and in CI; a local Developer ID build is
+  `APPLE_SIGNING_IDENTITY=<SHA-1> scripts/bundle.sh`.
+- The app-specific password appears in `notarytool`'s argv, visible to other processes of the same
+  user on the runner for the length of the call. Accepted: it is the owner's chosen credential, and
+  a keychain profile would need its own setup step on every runner.
+- Changing the icon means running `scripts/icon.sh` and committing the `.icns`.
+- A failed notarization reruns the whole build.
+- PR builds are ad hoc signed, so they cannot post notifications; only a release can.

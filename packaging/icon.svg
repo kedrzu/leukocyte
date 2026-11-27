@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" data-edge-fold="14">
+  <title>Leukocyte Icon</title>
+  <desc>The selected leukocyte icon with the exact Round-5 14-fold scallop edge, lilac/plum palette, and clean bean nucleus.</desc>
+  <defs>
+    <linearGradient id="background" x1="120" y1="80" x2="914" y2="944" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3D4CBD"/><stop offset=".52" stop-color="#733EB8"/><stop offset="1" stop-color="#CC4B9C"/>
+    </linearGradient>
+    <radialGradient id="body" cx="0" cy="0" r="1" gradientTransform="translate(445 403) rotate(50) scale(510)">
+      <stop stop-color="#FBF7FF"/><stop offset="1" stop-color="#E9DDF8"/>
+    </radialGradient>
+    <path id="membrane" d="M 440.126 197.098 C 495.697 184.415 453 162 512 162 C 571 162 528.303 184.415 583.874 197.098 C 639.445 209.782 610.702 171.062 663.859 196.661 C 717.016 222.26 668.823 223.93 713.387 259.468 C 757.952 295.007 748.855 247.651 785.641 293.779 C 822.427 339.907 778.282 320.5 803.013 371.856 C 827.744 423.211 840.096 376.597 853.225 434.118 C 866.354 491.638 835 455 835 512 C 835 569 866.354 532.362 853.225 589.882 C 840.096 647.403 827.744 600.789 803.013 652.144 C 778.282 703.5 822.427 684.093 785.641 730.221 C 748.855 776.349 757.952 728.993 713.387 764.532 C 668.823 800.07 717.016 801.74 663.859 827.339 C 610.702 852.938 639.445 814.218 583.874 826.902 C 528.303 839.585 571 862 512 862 C 453 862 495.697 839.585 440.126 826.902 C 384.555 814.218 413.298 852.938 360.141 827.339 C 306.984 801.74 355.177 800.07 310.613 764.532 C 266.048 728.993 275.145 776.349 238.359 730.221 C 201.573 684.093 245.718 703.5 220.987 652.144 C 196.256 600.789 183.904 647.403 170.775 589.882 C 157.646 532.362 189 569 189 512 C 189 455 157.646 491.638 170.775 434.118 C 183.904 376.597 196.256 423.211 220.987 371.856 C 245.718 320.5 201.573 339.907 238.359 293.779 C 275.145 247.651 266.048 295.007 310.613 259.468 C 355.177 223.93 306.984 222.26 360.141 196.661 C 413.298 171.062 384.555 209.782 440.126 197.098 Z"/>
+    <clipPath id="cellClip"><use href="#membrane"/></clipPath>
+    <clipPath id="beanClip"><path d="M418 347 C352 345 308 401 305 482 C301 569 349 636 425 657 C497 676 559 641 574 586 C585 545 563 514 523 494 C483 474 454 451 452 418 C450 382 453 351 418 347 Z"/></clipPath>
+  </defs>
+  <path fill="url(#background)" d="M220 24h584c121 0 196 75 196 196v584c0 121-75 196-196 196H220C99 1000 24 925 24 804V220C24 99 99 24 220 24Z"/>
+  <use href="#membrane" fill="#C9B7EC"/>
+  <circle cx="512" cy="512" r="296" fill="url(#body)"/>
+  <g clip-path="url(#cellClip)" fill="none" stroke="#FFFFFF" stroke-opacity=".58" stroke-width="13" stroke-linecap="round">
+    <path d="M338 329C379 287 426 266 478 259"/>
+    <path d="M686 695C645 737 598 758 546 765"/>
+  </g>
+  <g transform="rotate(-8 440 510)">
+      <path d="M418 347 C352 345 308 401 305 482 C301 569 349 636 425 657 C497 676 559 641 574 586 C585 545 563 514 523 494 C483 474 454 451 452 418 C450 382 453 351 418 347 Z" fill="#9564A7"/>
+      <g clip-path="url(#beanClip)">
+        <path d="M454 668 C514 658 558 626 574 586 C585 545 563 514 523 494 C501 483 481 471 466 458 C521 508 543 552 535 594 C529 630 500 654 454 668 Z" fill="#6B3D7F" fill-opacity=".74"/>
+        <g fill="#6B3D7F" fill-opacity=".30"><circle cx="354" cy="462" r="5"/><circle cx="369" cy="519" r="4"/><circle cx="397" cy="573" r="5"/><circle cx="433" cy="609" r="4"/><circle cx="459" cy="560" r="4"/></g>
+      </g>
+    </g>
+  <g fill="#855396" fill-opacity=".54"><circle cx="600" cy="350" r="12"/><circle cx="651" cy="394" r="9"/><circle cx="679" cy="455" r="12"/><circle cx="680" cy="523" r="9"/><circle cx="655" cy="586" r="12"/><circle cx="607" cy="633" r="9"/></g>
+</svg>
