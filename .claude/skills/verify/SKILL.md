@@ -34,5 +34,10 @@ CI also runs a `bundle` job beside it: `scripts/test-keychain.sh` and an ad-hoc 
 `scripts/bundle.sh`. Run both after touching `scripts/bundle.sh`, `scripts/lib/`, `packaging/` or
 the toolchain targets; `verify.sh` does not cover them.
 
+CI also runs a `sidecar` job on ubuntu. Run `bun install --frozen-lockfile`, `bun run check` and
+`bun run test` after touching `tools/`, the root `package.json` or `bun.lock`; `verify.sh` does not
+cover them. `tools/pushGithub.test.ts` guards that no secret value reaches argv or output: never
+weaken it.
+
 Tests that touch the machine (spawning process trees, sockets, launchd) set `LEUKOCYTE_HOME` to a
 temp directory so they never touch an installed daemon.

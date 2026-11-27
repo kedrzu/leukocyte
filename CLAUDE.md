@@ -18,6 +18,10 @@ One binary crate (daemon and CLI). Planned modules, added task by task under `sr
 - `daemon` the 5 s loop, reload, unix socket, JSONL action log.
 - `cli` clap subcommands.
 
+A small Bun sidecar in `tools/` (root `package.json`, TypeScript, not shipped) holds the release secrets:
+`bun secrets …` reads them from Bitwarden and pushes them to GitHub Actions (`docs/secrets.md`). CI reads
+only GitHub secrets, never Bitwarden. Design: `docs/decisions/secrets-in-a-bun-sidecar.md`.
+
 # Essential commands
 
 - `cargo build` / `cargo run -- <args>` / `cargo test` (one test: `cargo test <name>`).
@@ -29,6 +33,8 @@ One binary crate (daemon and CLI). Planned modules, added task by task under `sr
   `APPLE_SIGNING_IDENTITY`, or ad hoc). CI's `bundle` job runs it ad hoc with
   `scripts/test-keychain.sh`. `scripts/icon.sh` renders `packaging/icon.svg` into the committed
   `packaging/leukocyte.icns`. Design: `docs/decisions/release-pipeline-one-bundle-script-and-a-dispatch-workflow.md`.
+- `bun install`, `bun run check` (`tsgo --noEmit`), `bun run test` (`bun test tools`): the sidecar's checks,
+  CI's `sidecar` job. `bun secrets <command>`: `login`, `set`, `list`, `run`, `refresh`, `push-github`.
 - Fix formatting with `cargo fmt --all`, never by hand.
 - Wrap noisy commands in a redirect to `.context/cmd-logs/<name>.log` and read the log selectively
   (grep, a line range), never whole: a long log is re-read on every later turn.
