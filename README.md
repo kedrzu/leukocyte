@@ -158,6 +158,9 @@ Run by hand after `leukocyte install`:
 - A browser launched from `/Applications` (your own Chrome) is never killed, whatever a rule says.
 - Origins live in the daemon's memory. After a daemon restart, a process first seen already orphaned
   and without identity environment has an unknown origin, so `abandoned` rules leave it alone.
+- Notifications go through `osascript`, which macOS attributes to Script Editor: they show only once
+  Script Editor is allowed in System Settings → Notifications. Errors always reach `status` and the
+  log. Native notifications from a `Leukocyte.app` bundle are the next step.
 - macOS only, Apple Silicon first.
 
 ## Licence
