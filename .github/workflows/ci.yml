@@ -37,6 +37,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: The signing keychain cleans up on every exit path
         run: scripts/test-keychain.sh
+      - name: The release preflight refuses an existing tag and a ref other than main
+        run: scripts/test-release-preflight.sh
       - name: Build Leukocyte.app (universal, ad hoc signed)
         run: scripts/bundle.sh
       - name: Check the bundle
@@ -45,8 +47,12 @@ jobs:
           archs="$(lipo -archs target/bundle/Leukocyte.app/Contents/MacOS/leukocyte)"
           echo "archs: $archs"
           [[ " $archs " == *" arm64 "* && " $archs " == *" x86_64 "* ]]
+      - name: Render the cask from the zip (and check its Ruby syntax)
+        run: scripts/cask.sh
       - uses: actions/upload-artifact@v4
         with:
           name: Leukocyte-app
-          path: target/bundle/Leukocyte-*.zip
+          path: |
+            target/bundle/Leukocyte-*.zip
+            target/bundle/leukocyte.rb
           if-no-files-found: error

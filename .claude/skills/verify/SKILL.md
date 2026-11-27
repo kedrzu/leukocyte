@@ -30,9 +30,9 @@ The gate before claiming work is done, and what CI runs on `macos-latest`. Fix e
 suppress a lint with `#[allow]`, never mark a test ignored to get green, never weaken an assertion.
 Read the failing step's first error line before changing anything.
 
-CI also runs a `bundle` job beside it: `scripts/test-keychain.sh` and an ad-hoc universal
-`scripts/bundle.sh`. Run both after touching `scripts/bundle.sh`, `scripts/lib/`, `packaging/` or
-the toolchain targets; `verify.sh` does not cover them.
+CI also runs a `bundle` job beside it: `scripts/test-keychain.sh`, `scripts/test-release-preflight.sh`,
+an ad-hoc universal `scripts/bundle.sh` and `scripts/cask.sh`. Run them after touching `scripts/`,
+`packaging/` or the toolchain targets; `verify.sh` does not cover them.
 
 CI also runs a `sidecar` job on ubuntu. Run `bun install --frozen-lockfile`, `bun run check` and
 `bun run test` after touching `tools/`, the root `package.json` or `bun.lock`; `verify.sh` does not

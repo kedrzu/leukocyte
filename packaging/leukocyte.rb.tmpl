@@ -1,0 +1,50 @@
+# Rendered by scripts/cask.sh into kedrzu/homebrew-tap's Casks/leukocyte.rb; edit the template, not
+# the tap.
+cask "leukocyte" do
+  version "@VERSION@"
+  sha256 "@SHA256@"
+
+  url "https://github.com/kedrzu/leukocyte/releases/download/v#{version}/Leukocyte-#{version}.zip"
+  name "leukocyte"
+  desc "Kills stale dev processes left behind by AI coding agents"
+  homepage "https://github.com/kedrzu/leukocyte"
+
+  depends_on macos: ">= :ventura"
+
+  app "Leukocyte.app"
+  binary "#{appdir}/Leukocyte.app/Contents/MacOS/leukocyte"
+
+  # An upgrade runs the old cask's uninstall (this preflight, then the stanza below, which stops the
+  # agent) and then the new cask's postflight, and neither block can tell an upgrade from an
+  # uninstall. So the preflight marks an installed agent, and the postflight reinstalls it only when
+  # the mark is under 10 minutes old. A plain uninstall leaves a mark behind; a later install
+  # removes it, and reinstalls the agent only within those 10 minutes.
+  uninstall_preflight do
+    if File.exist?(File.expand_path("~/Library/LaunchAgents/dev.leukocyte.daemon.plist"))
+      data = File.expand_path("~/Library/Application Support/leukocyte")
+      FileUtils.mkdir_p(data)
+      File.write("#{data}/.reinstall-after-upgrade", Time.now.to_i.to_s)
+    end
+  end
+
+  uninstall launchctl: "dev.leukocyte.daemon",
+            delete:    "~/Library/LaunchAgents/dev.leukocyte.daemon.plist"
+
+  postflight do
+    marker = File.expand_path("~/Library/Application Support/leukocyte/.reinstall-after-upgrade")
+    if File.exist?(marker)
+      if Time.now.to_i - File.read(marker).to_i < 600
+        system_command "#{appdir}/Leukocyte.app/Contents/MacOS/leukocyte",
+                       args:         ["install", "--no-prompt"],
+                       must_succeed: false
+      end
+      File.delete(marker)
+    end
+  end
+
+  zap trash: [
+    "~/.config/leukocyte",
+    "~/Library/Application Support/leukocyte",
+    "~/Library/Logs/leukocyte",
+  ]
+end

@@ -77,3 +77,35 @@ C, plus B's upgrade marker in the cask.
 - Changing the icon means running `scripts/icon.sh` and committing the `.icns`.
 - A failed notarization reruns the whole build.
 - PR builds are ad hoc signed, so they cannot post notifications; only a release can.
+
+## Addendum: the release workflow, the cask and upgrades (2026-11-27)
+
+cargo-dist is gone (`dist-workspace.toml`, `[profile.dist]` and its generated `release.yml`): it built
+bare binaries and a formula, and a formula cannot ship the signed app that notifications need.
+`release.yml` is now hand-written, one `macos-latest` job dispatched with a `dry_run` input:
+`scripts/release-preflight.sh` (refuses an existing tag `v<version>`, and a ref other than `main`
+unless dry run), `bundle.sh --notarize`, `scripts/cask.sh`, then, outside a dry run only, the tag and
+GitHub Release (`gh release create`) and a commit of `Casks/leukocyte.rb` to `kedrzu/homebrew-tap`.
+The publishing steps follow notarization in the same job, so no tag exists before Apple accepted the
+build. Steps: `../releasing.md`.
+
+The cask (`packaging/leukocyte.rb.tmpl`) installs `Leukocyte.app`, links its binary onto `PATH`, and
+its `uninstall` stanza boots the agent out and deletes its plist. It does not install the agent:
+the user runs `leukocyte install`, which asks for notification permission.
+
+An upgrade must restart a running agent from the new app. Read in Homebrew 7.0.16's source
+(`cask/upgrade.rb`, `cask/installer.rb`, 2026-11-27): `brew upgrade` runs the old cask's uninstall
+(its `uninstall_preflight`, then the `uninstall` directives, `launchctl` and `delete` included) and
+then the new cask's artifacts and `postflight`; a flight block is not told whether it runs for an
+upgrade. So `uninstall_preflight` writes the epoch seconds to
+`~/Library/Application Support/leukocyte/.reinstall-after-upgrade` when the agent's plist exists, and
+`postflight` runs `leukocyte install --no-prompt` when that marker is under 600 s old, deleting it
+either way. A plain uninstall leaves a marker that the next install deletes, reinstalling the agent
+only if it comes within those 10 minutes.
+
+Homebrew 7 deprecates flight blocks for declarative `*_steps` (`odeprecated` in `cask/dsl.rb`;
+`brew style` reports `Cask/InstallSteps`), so users see a deprecation warning on install and
+upgrade. The steps cannot replace them here: they run in Homebrew's sandbox with a temporary `HOME`
+(`run_cask_sandbox` in `cask/artifact/abstract_artifact.rb`), where `leukocyte install` would write
+the plist into the wrong home, and their guards test only whether a path exists, so the marker's
+age cannot be checked. Revisit when Homebrew disables flight blocks.

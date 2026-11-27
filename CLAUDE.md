@@ -30,8 +30,9 @@ only GitHub secrets, never Bitwarden. Design: `docs/decisions/secrets-in-a-bun-s
   `macos-latest`. `scripts/verify-scoped.sh` is the same for now.
 - `scripts/bundle.sh [--notarize]` builds the universal `target/bundle/Leukocyte.app` and its zip;
   signing follows the environment (temporary keychain from `APPLE_CERTIFICATE`, login-keychain
-  `APPLE_SIGNING_IDENTITY`, or ad hoc). CI's `bundle` job runs it ad hoc with
-  `scripts/test-keychain.sh`. `scripts/icon.sh` renders `packaging/icon.svg` into the committed
+  `APPLE_SIGNING_IDENTITY`, or ad hoc). `scripts/cask.sh` renders the Homebrew cask from its zip. CI's
+  `bundle` job runs both ad hoc, with `scripts/test-keychain.sh` and `scripts/test-release-preflight.sh`.
+  Releasing: `docs/releasing.md`. `scripts/icon.sh` renders `packaging/icon.svg` into the committed
   `packaging/leukocyte.icns`. Design: `docs/decisions/release-pipeline-one-bundle-script-and-a-dispatch-workflow.md`.
 - `bun install`, `bun run check` (`tsgo --noEmit`), `bun run test` (`bun test tools`): the sidecar's checks,
   CI's `sidecar` job. `bun secrets <command>`: `login`, `set`, `list`, `run`, `refresh`, `push-github`.
