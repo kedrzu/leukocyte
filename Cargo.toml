@@ -10,12 +10,16 @@ homepage = "https://github.com/kedrzu/leukocyte"
 readme = "README.md"
 
 [dependencies]
+block2 = "0.6"
 clap = { version = "4.6.10", features = ["derive"] }
 libc = "0.2"
 libproc = "0.15"
 mach2 = "0.7"
 mlua = { version = "0.12", features = ["luau"] }
 notify = "9"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSString", "NSError"] }
+objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "UNUserNotificationCenter", "UNNotificationSettings", "UNNotificationRequest", "UNNotificationContent", "UNNotificationSound", "UNNotificationTrigger"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -6,6 +6,8 @@ use serde_json::Value;
 
 use crate::daemon::ConfigMode;
 use crate::daemon::ipc::{CheckReply, ExplanationReply, SourceStatus, StatusReply};
+use crate::platform::NotifyState;
+use crate::platform::notify;
 
 pub fn mode_name(mode: ConfigMode) -> &'static str {
     match mode {
@@ -92,6 +94,15 @@ pub fn status(s: &StatusReply) -> String {
             "fuse:     last tripped {}, holding back {} kills",
             f.at, f.kills
         );
+    }
+    match &s.notifications {
+        None => {}
+        Some(state @ (NotifyState::Denied | NotifyState::NotAsked)) => {
+            let _ = writeln!(out, "notify:   {state}: {}", notify::SETTINGS_HINT);
+        }
+        Some(state) => {
+            let _ = writeln!(out, "notify:   {state}");
+        }
     }
     if !s.eval_errors.is_empty() {
         out.push_str("rule errors:\n");
@@ -264,6 +275,37 @@ mod tests {
         assert!(text.contains("  cmd     node --token=***\n"));
         assert!(text.contains("eval error: s / r on pid 7: boom"));
         assert_eq!(check(&CheckReply::default()), "no process matches a rule\n");
+    }
+
+    #[test]
+    fn status_shows_the_notification_state_with_a_hint_when_it_is_off() {
+        let line = |state: Option<NotifyState>| {
+            status(&StatusReply {
+                notifications: state,
+                ..StatusReply::default()
+            })
+            .lines()
+            .find(|l| l.starts_with("notify:"))
+            .map(str::to_owned)
+        };
+        assert_eq!(line(None), None);
+        assert_eq!(
+            line(Some(NotifyState::Allowed)).unwrap(),
+            "notify:   allowed"
+        );
+        let hint = "enable in System Settings → Notifications → leukocyte";
+        assert_eq!(
+            line(Some(NotifyState::Denied)).unwrap(),
+            format!("notify:   denied: {hint}")
+        );
+        assert_eq!(
+            line(Some(NotifyState::NotAsked)).unwrap(),
+            format!("notify:   not asked: {hint}")
+        );
+        assert_eq!(
+            line(Some(NotifyState::Unavailable("x".to_owned()))).unwrap(),
+            "notify:   unavailable (x)"
+        );
     }
 
     #[test]

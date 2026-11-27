@@ -9,8 +9,8 @@ outranks a kill. Design: `docs/decisions/`.
 
 One binary crate (daemon and CLI). Planned modules, added task by task under `src/`:
 
-- `platform` the only macOS code: snapshot, lazy argv/cwd/env/sockets, signals, notify via
-  `osascript`, launchd.
+- `platform` the only macOS code: snapshot, lazy argv/cwd/env/sockets, signals, native
+  notifications (`UNUserNotificationCenter`, only from `Leukocyte.app`), launchd.
 - `facts` `ProcKey { pid, start }`, the process table, idle, origin, repo attribution.
 - `rules` Luau sandbox, schema, `judge`.
 - `engine` prefilter, `when`/`idle`, `judge`, merge, quarantine, fuse, actions.

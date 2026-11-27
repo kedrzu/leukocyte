@@ -18,6 +18,19 @@ leukocyte install                     # writes and starts the LaunchAgent
 
 `leukocyte uninstall` stops the daemon and removes the LaunchAgent.
 
+## Notifications
+
+The daemon notifies when a rules file fails to load or a rule fails to evaluate, and when the fuse
+trips. Only `Leukocyte.app` can notify: macOS attributes a notification to the app bundle that posts
+it.
+
+`leukocyte install` asks macOS for permission once the daemon runs. If the answer is not "allowed",
+it opens System Settings → Notifications → leukocyte, where you enable it (macOS may not show the
+prompt at all). `leukocyte install --no-prompt` only installs the agent and opens nothing.
+
+`leukocyte status` shows the state: `allowed`, `denied`, `not asked`, or `unavailable (…)` when the
+binary does not run from `Leukocyte.app`. Errors reach `status` and the log whatever the state.
+
 ## Use
 
 ```sh
@@ -158,9 +171,8 @@ Run by hand after `leukocyte install`:
 - A browser launched from `/Applications` (your own Chrome) is never killed, whatever a rule says.
 - Origins live in the daemon's memory. After a daemon restart, a process first seen already orphaned
   and without identity environment has an unknown origin, so `abandoned` rules leave it alone.
-- Notifications go through `osascript`, which macOS attributes to Script Editor: they show only once
-  Script Editor is allowed in System Settings → Notifications. Errors always reach `status` and the
-  log. Native notifications from a `Leukocyte.app` bundle are the next step.
+- Only the signed release build of `Leukocyte.app` notifies. A `cargo install` binary or a local
+  build reports notifications as unavailable or denied; errors still reach `status` and the log.
 - macOS only, Apple Silicon first.
 
 ## Licence

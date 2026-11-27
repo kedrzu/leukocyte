@@ -17,7 +17,9 @@ use crate::daemon::config::{Config, ConfigMode, Paths};
 use crate::daemon::ipc::{self, Request, Response};
 use crate::daemon::run_daemon;
 use crate::facts::Repos;
+use crate::platform::NotifyState;
 use crate::platform::launchd;
+use crate::platform::notify::{self, PromptOutcome};
 use crate::rules::RuleSet;
 
 /// How long `install` waits for the new daemon to answer.
@@ -37,8 +39,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Install and start the LaunchAgent that runs the daemon
-    Install,
+    /// Install and start the LaunchAgent that runs the daemon, then ask for permission to
+    /// show notifications
+    Install {
+        /// Only install and start the agent; never open anything (for upgrades)
+        #[arg(long)]
+        no_prompt: bool,
+    },
     /// Stop the daemon and remove its LaunchAgent
     Uninstall,
     /// Register a repo: the daemon then applies its .leukocyte/rules.lua
@@ -73,6 +80,10 @@ enum Cmd {
     Mode { mode: ModeArg },
     /// Run the daemon in the foreground (what the LaunchAgent runs)
     Daemon,
+    /// Ask macOS for permission to notify and print the resulting state (run by `install`
+    /// inside Leukocyte.app)
+    #[command(name = "request-notifications", hide = true)]
+    RequestNotifications,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -135,7 +146,7 @@ pub fn run() -> ExitCode {
 fn dispatch(command: Cmd) -> Result<(), CliError> {
     let paths = Paths::from_env()?;
     match command {
-        Cmd::Install => install(&paths),
+        Cmd::Install { no_prompt } => install(&paths, no_prompt),
         Cmd::Uninstall => {
             launchd::uninstall()?;
             println!("uninstalled the LaunchAgent; config and logs are left in place");
@@ -161,6 +172,10 @@ fn dispatch(command: Cmd) -> Result<(), CliError> {
         Cmd::Log { follow } => log(&paths, follow),
         Cmd::Mode { mode } => set_mode(&paths, mode.into()),
         Cmd::Daemon => Ok(run_daemon()?),
+        Cmd::RequestNotifications => {
+            println!("{}", notify::request_authorization(notify::REQUEST_WAIT));
+            Ok(())
+        }
     }
 }
 
@@ -185,7 +200,7 @@ fn unexpected<T>(response: &Response) -> Result<T, CliError> {
     fail(format!("unexpected answer from the daemon: {response:?}"))
 }
 
-fn install(paths: &Paths) -> Result<(), CliError> {
+fn install(paths: &Paths, no_prompt: bool) -> Result<(), CliError> {
     paths.create_dirs()?;
     Config::create_default(&paths.config_file())?;
     let plist = launchd::install(&paths.daemon_log())?;
@@ -197,6 +212,9 @@ fn install(paths: &Paths) -> Result<(), CliError> {
             println!("logs: {}", paths.logs.display());
             println!("  actions: {}", paths.action_log().display());
             println!("  daemon:  {}", paths.daemon_log().display());
+            if let Some(line) = prompt_line(&notify::prompt(no_prompt)) {
+                println!("{line}");
+            }
             return Ok(());
         }
         if Instant::now() >= deadline {
@@ -208,6 +226,29 @@ fn install(paths: &Paths) -> Result<(), CliError> {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
+}
+
+/// What `install` says about the notification permission; `None` when it was not asked.
+fn prompt_line(outcome: &PromptOutcome) -> Option<String> {
+    let hint = notify::SETTINGS_HINT;
+    Some(match outcome {
+        PromptOutcome::Skipped => return None,
+        PromptOutcome::NoBundle => {
+            "notifications: need Leukocyte.app (brew install --cask); errors still reach \
+             `leukocyte status` and the log"
+                .to_owned()
+        }
+        PromptOutcome::Answered {
+            state: NotifyState::Allowed,
+            ..
+        } => "notifications: allowed".to_owned(),
+        PromptOutcome::Answered {
+            state,
+            settings_opened: true,
+        } => format!("notifications: {state}; System Settings is open: {hint}"),
+        PromptOutcome::Answered { state, .. } => format!("notifications: {state}; {hint}"),
+        PromptOutcome::Failed(e) => format!("notifications: not asked ({e}); {hint}"),
+    })
 }
 
 /// The config, or the default one when the file does not exist.
@@ -362,5 +403,50 @@ fn set_mode(paths: &Paths, mode: ConfigMode) -> Result<(), CliError> {
             Ok(())
         }
         Err(e) => Err(e),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_reports_every_notification_outcome_and_says_nothing_with_no_prompt() {
+        assert_eq!(prompt_line(&PromptOutcome::Skipped), None);
+        let line = |outcome| prompt_line(&outcome).unwrap();
+        assert!(line(PromptOutcome::NoBundle).contains("need Leukocyte.app"));
+        assert_eq!(
+            line(PromptOutcome::Answered {
+                state: NotifyState::Allowed,
+                settings_opened: false
+            }),
+            "notifications: allowed"
+        );
+        let denied = line(PromptOutcome::Answered {
+            state: NotifyState::Denied,
+            settings_opened: true,
+        });
+        assert!(denied.starts_with("notifications: denied; System Settings is open"));
+        assert!(denied.ends_with(notify::SETTINGS_HINT));
+        assert!(
+            line(PromptOutcome::Failed("timed out".to_owned())).contains("not asked (timed out)")
+        );
+    }
+
+    #[test]
+    fn install_takes_no_prompt_and_request_notifications_is_hidden() {
+        let cli = Cli::try_parse_from(["leukocyte", "install", "--no-prompt"]).unwrap();
+        assert!(matches!(cli.command, Cmd::Install { no_prompt: true }));
+        let cli = Cli::try_parse_from(["leukocyte", "request-notifications"]).unwrap();
+        assert!(matches!(cli.command, Cmd::RequestNotifications));
+        let mut help = Vec::new();
+        <Cli as clap::CommandFactory>::command()
+            .write_long_help(&mut help)
+            .unwrap();
+        assert!(
+            !String::from_utf8(help)
+                .unwrap()
+                .contains("request-notifications")
+        );
     }
 }
