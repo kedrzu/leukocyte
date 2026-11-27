@@ -1,3 +1,5 @@
-fn main() {
-    println!("leukocyte {}", env!("CARGO_PKG_VERSION"));
+#![deny(unsafe_code)]
+
+fn main() -> std::process::ExitCode {
+    leukocyte::cli::run()
 }

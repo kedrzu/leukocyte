@@ -28,13 +28,15 @@ were compared before choosing.
 The hybrid of the third and the first: a file returns `{ api = 1, env = {...}, rules = {...} }`. Each
 rule has a `name`, a `match` (substring of the command line, or `re`), `when` (`abandoned` by default,
 `orphaned`, `always`), optional `idle`, `quarantine` (default 5 m), `grace` (default 5 s), `signal`
-(default `TERM`), `enforce` (default `false`) and an optional `judge(p)`. Rust prefilters by `match`,
-evaluates `when` and `idle`, and calls `judge` only for survivors; `judge` returns a verb and reason
-(`kill`, `report`, `protect`) or `nil` to keep the declarative verdict. The daemon writes kill reasons
+(default `TERM`), `enforce` (default `false`) and an optional `judge(p)`. Rust prefilters by `match`
+and evaluates `when` and `idle` into a declarative verdict; `judge` is then called for every process
+the matcher hit, whatever that verdict, and returns a verb and reason (`kill`, `report`, `protect`)
+that overrides it, or `nil` to keep it. Calling it only for processes that passed `when`/`idle` would
+stop a `judge` from protecting or killing outside them; matched processes are few, so the cost is small. The daemon writes kill reasons
 from the facts that matched, and `judge` reasons are appended. `abandoned` means orphaned with
 `origin.alive == false`; a missing origin record protects. Unknown keys and an unsupported `api` are
 load errors, as is a `match` shorter than 4 characters. Process fields are a lazy userdata, cached per
-scan (`pid ppid exe argv cmd cwd age rss cpu idle orphan session_alive origin repo env clients
+evaluation (a view kept past its evaluation reads nothing) (`pid ppid exe argv cmd cwd age rss cpu idle orphan session_alive origin repo env clients
 listening parent children newer_twins`).
 
 ## Consequences
