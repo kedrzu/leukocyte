@@ -90,6 +90,10 @@ impl fmt::Display for EvalError {
 
 impl std::error::Error for EvalError {}
 
+/// The guide to writing rules (`docs/writing-rules.md`), printed by `leukocyte guide`; its Lua
+/// examples are tested to load.
+pub const GUIDE: &str = include_str!("../../docs/writing-rules.md");
+
 impl RuleSet {
     /// Loads a rules file from its text; `name` names it in errors and Lua tracebacks.
     pub fn load(name: &str, source: &[u8]) -> Result<Self, LoadError> {

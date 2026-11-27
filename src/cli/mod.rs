@@ -70,6 +70,8 @@ enum Cmd {
         /// A rules file to try out, inside a registered repo
         rules: Option<PathBuf>,
     },
+    /// Print the guide to writing rules: the workflow for a repo, patterns, the reference
+    Guide,
     /// Print the action log
     Log {
         /// Keep running and print events as they are written
@@ -169,6 +171,10 @@ fn dispatch(command: Cmd) -> Result<ExitCode, CliError> {
             other => unexpected(&other),
         },
         Cmd::Check { rules } => check(rules.as_deref()),
+        Cmd::Guide => {
+            print!("{}", crate::rules::GUIDE);
+            Ok(())
+        }
         Cmd::Log { follow } => log(&paths, follow),
         Cmd::Mode { mode } => set_mode(&paths, mode.into()),
         // The only command whose exit code varies: launchd restarts a non-zero exit.
