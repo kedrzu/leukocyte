@@ -124,9 +124,13 @@ fn snapshot_reads_a_spawned_tree() {
 
     let shell_cmd = shell.cmdline().unwrap();
     assert_eq!(shell_cmd.argv, ["/bin/sh", "-c", script]);
-    // `/bin/sh` is a platform binary: the kernel withholds its environment, so its identity
-    // variables are unknown rather than absent.
-    assert_eq!(shell_cmd.env, None);
+    // Whether the kernel shows a platform binary's environment depends on the machine (withheld on a
+    // developer Mac, shown on GitHub's runners). Either way only allowlisted names may come back.
+    if let Some(env) = &shell_cmd.env {
+        let names: Vec<&str> = env.keys().map(String::as_str).collect();
+        assert_eq!(names, ["LEUKO_TEST_ALLOWED", "PASEO_AGENT_ID"]);
+    }
+    assert!(!format!("{shell_cmd:?}").contains(SECRET));
 
     let children: Vec<_> = table.children_of(shell).collect();
     assert_eq!(children.len(), 1);
@@ -166,15 +170,6 @@ fn env_outside_the_allowlist_is_never_read() {
 
     let direct = platform::cmdline(child.key(), &Default::default()).unwrap();
     assert_eq!(direct.env, Some(Default::default()));
-}
-
-#[test]
-fn a_withheld_env_is_unknown() {
-    let child = Spawned::new(sleep_cmd().env("CLAUDE_PID", "1"));
-    let table = ProcessTable::snapshot(Vec::<String>::new()).unwrap();
-    let cmd = table.by_pid(child.pid()).unwrap().cmdline().unwrap();
-    assert_eq!(cmd.argv, ["/bin/sleep", "30"]);
-    assert_eq!(cmd.env, None);
 }
 
 #[test]
