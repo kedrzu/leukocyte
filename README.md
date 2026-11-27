@@ -11,12 +11,31 @@ says `enforce = true`.
 ## Install
 
 ```sh
-brew install kedrzu/tap/leukocyte     # once the first release exists
-cargo install --git https://github.com/kedrzu/leukocyte
-leukocyte install                     # writes and starts the LaunchAgent
+brew install --cask kedrzu/tap/leukocyte   # Leukocyte.app, signed and notarized; `leukocyte` on PATH
+leukocyte install                          # writes and starts the LaunchAgent
 ```
 
-`leukocyte uninstall` stops the daemon and removes the LaunchAgent.
+`leukocyte uninstall` stops the daemon and removes the LaunchAgent. After `brew upgrade` the running
+daemon sees its app replaced and restarts from the new one within about 10 seconds. After
+`brew uninstall --cask leukocyte` it sees the app gone, removes its LaunchAgent and exits within about
+two minutes; run `leukocyte uninstall` first to stop it at once. `--zap` deletes the data, logs and
+personal rules too.
+
+For development, `cargo install --git https://github.com/kedrzu/leukocyte` builds a bare binary. It
+runs the daemon the same way but cannot post notifications (see below).
+
+## Notifications
+
+The daemon notifies when a rules file fails to load or a rule fails to evaluate, and when the fuse
+trips. Only `Leukocyte.app` can notify: macOS attributes a notification to the app bundle that posts
+it.
+
+`leukocyte install` asks macOS for permission once the daemon runs. If the answer is not "allowed",
+it opens System Settings → Notifications → leukocyte, where you enable it (macOS may not show the
+prompt at all). `leukocyte install --no-prompt` only installs the agent and opens nothing.
+
+`leukocyte status` shows the state: `allowed`, `denied`, `not asked`, or `unavailable (…)` when the
+binary does not run from `Leukocyte.app`. Errors reach `status` and the log whatever the state.
 
 ## Use
 
@@ -136,11 +155,21 @@ each process. Of the footprint, about 2.3 MB is live heap: the last scan's proce
 (about 0.3 MB), the redaction regexes and the file-system watch. The rest is allocator slack and
 the dirty pages of the system libraries the file-system watch loads.
 
+The installed app, measured 2026-11-27 with `scripts/footprint.sh <pid> 10`: the signed, notarized
+universal `Leukocyte.app` started by its LaunchAgent, about 990 processes, observe mode, no rules files
+loaded:
+
+| Measure        | min     | avg     | max     |
+| -------------- | ------- | ------- | ------- |
+| RSS            | 14.7 MB | 15.3 MB | 15.9 MB |
+| phys_footprint | 4.5 MB  | 4.9 MB  | 5.4 MB  |
+| CPU, one core  | 0.30 %  | 0.45 %  | 0.50 %  |
+
 RSS counts the shared, clean pages of system libraries; `phys_footprint` is the memory the daemon
 itself dirties, what Activity Monitor shows as Memory.
 
 The budget is `phys_footprint` at most 8 MB and CPU under 1 % of one core on about 1000 processes.
-RSS is not budgeted: it stays around 13 MB whatever the daemon does.
+RSS is not budgeted: it stays between 13 and 16 MB whatever the daemon does.
 
 ## Verifying an install
 
@@ -158,9 +187,8 @@ Run by hand after `leukocyte install`:
 - A browser launched from `/Applications` (your own Chrome) is never killed, whatever a rule says.
 - Origins live in the daemon's memory. After a daemon restart, a process first seen already orphaned
   and without identity environment has an unknown origin, so `abandoned` rules leave it alone.
-- Notifications go through `osascript`, which macOS attributes to Script Editor: they show only once
-  Script Editor is allowed in System Settings → Notifications. Errors always reach `status` and the
-  log. Native notifications from a `Leukocyte.app` bundle are the next step.
+- Only the signed release build of `Leukocyte.app` notifies. A `cargo install` binary or a local
+  build reports notifications as unavailable or denied; errors still reach `status` and the log.
 - macOS only, Apple Silicon first.
 
 ## Licence

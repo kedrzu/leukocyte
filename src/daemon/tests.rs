@@ -495,3 +495,39 @@ fn an_enforced_kill_is_tracked_in_flight_and_its_report_logged() {
     );
     assert!(child.0.wait().is_ok());
 }
+
+#[test]
+fn without_the_bundle_a_broken_rules_file_still_reaches_the_log_and_status_without_stalling() {
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = Paths::under(tmp.path());
+    // The system notifier, as the LaunchAgent runs it; the test binary is not in Leukocyte.app.
+    let mut d = Daemon::new(
+        paths.clone(),
+        Notifier::System(platform::notify::Notifier::for_this_process()),
+        Watches::none(),
+    )
+    .unwrap();
+    fs::write(
+        paths.personal_rules(),
+        "return { api = 1, rules = { { name = 1 } } }",
+    )
+    .unwrap();
+    let started = Instant::now();
+    d.tick();
+    assert!(started.elapsed() < Duration::from_secs(5));
+    let status = d.status_reply();
+    assert!(status.personal.error.is_some(), "{status:?}");
+    assert_eq!(
+        status.notifications,
+        Some(NotifyState::Unavailable(
+            "not running from Leukocyte.app".to_owned()
+        ))
+    );
+    assert_eq!(
+        events(tmp.path())
+            .iter()
+            .filter(|e| e["event"] == "rules_error")
+            .count(),
+        1
+    );
+}

@@ -17,6 +17,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use super::config::{ConfigMode, Paths};
+use crate::platform::NotifyState;
 
 /// How long the socket waits for the scan thread to answer a request.
 pub const COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
@@ -79,6 +80,8 @@ pub struct StatusReply {
     pub in_flight: Vec<InFlightStatus>,
     /// The last time the fuse tripped.
     pub fuse: Option<FuseStatus>,
+    /// Whether the daemon may show notifications; `None` from a daemon that predates it.
+    pub notifications: Option<NotifyState>,
     /// Rule evaluations failing as of the last scan.
     pub eval_errors: Vec<EvalErrorStatus>,
 }

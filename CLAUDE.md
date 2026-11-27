@@ -9,14 +9,19 @@ outranks a kill. Design: `docs/decisions/`.
 
 One binary crate (daemon and CLI). Planned modules, added task by task under `src/`:
 
-- `platform` the only macOS code: snapshot, lazy argv/cwd/env/sockets, signals, notify via
-  `osascript`, launchd.
+- `platform` the only macOS code: snapshot, lazy argv/cwd/env/sockets, signals, native
+  notifications (`UNUserNotificationCenter`, only from `Leukocyte.app`), launchd.
 - `facts` `ProcKey { pid, start }`, the process table, idle, origin, repo attribution.
 - `rules` Luau sandbox, schema, `judge`.
 - `engine` prefilter, `when`/`idle`, `judge`, merge, quarantine, fuse, actions.
 - `kill` subtree termination with identity re-check.
-- `daemon` the 5 s loop, reload, unix socket, JSONL action log.
+- `daemon` the 5 s loop, reload, unix socket, JSONL action log, and following its own executable
+  (restart when the app is replaced, removal of the LaunchAgent when it is gone).
 - `cli` clap subcommands.
+
+A small Bun sidecar in `tools/` (root `package.json`, TypeScript, not shipped) holds the release secrets:
+`bun secrets …` reads them from Bitwarden and pushes them to GitHub Actions (`docs/secrets.md`). CI reads
+only GitHub secrets, never Bitwarden. Design: `docs/decisions/secrets-in-a-bun-sidecar.md`.
 
 # Essential commands
 
@@ -24,6 +29,14 @@ One binary crate (daemon and CLI). Planned modules, added task by task under `sr
 - `scripts/verify.sh` runs `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings`,
   `cargo test`; stops at the first failure and prints `✗ verify FAILED at step: <name>`. CI runs it on
   `macos-latest`. `scripts/verify-scoped.sh` is the same for now.
+- `scripts/bundle.sh [--notarize]` builds the universal `target/bundle/Leukocyte.app` and its zip;
+  signing follows the environment (temporary keychain from `APPLE_CERTIFICATE`, login-keychain
+  `APPLE_SIGNING_IDENTITY`, or ad hoc). `scripts/cask.sh` renders the Homebrew cask from its zip. CI's
+  `bundle` job runs both ad hoc, with `scripts/test-keychain.sh` and `scripts/test-release-preflight.sh`.
+  Releasing: `docs/releasing.md`. `scripts/icon.sh` renders `packaging/icon.svg` into the committed
+  `packaging/leukocyte.icns`. Design: `docs/decisions/release-pipeline-one-bundle-script-and-a-dispatch-workflow.md`.
+- `bun install`, `bun run check` (`tsgo --noEmit`), `bun run test` (`bun test tools`): the sidecar's checks,
+  CI's `sidecar` job. `bun secrets <command>`: `login`, `set`, `list`, `run`, `refresh`, `push-github`.
 - Fix formatting with `cargo fmt --all`, never by hand.
 - Wrap noisy commands in a redirect to `.context/cmd-logs/<name>.log` and read the log selectively
   (grep, a line range), never whole: a long log is re-read on every later turn.

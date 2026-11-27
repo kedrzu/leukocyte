@@ -1,0 +1,21 @@
+{
+    "name": "leukocyte-dev",
+    "private": true,
+    "description": "Developer tooling of leukocyte: the secrets sidecar (`bun secrets …`)",
+    "type": "module",
+    "scripts": {
+        "secrets": "bun tools/cli.ts secrets",
+        "check": "tsgo --noEmit",
+        "test": "bun test tools"
+    },
+    "dependencies": {
+        "@nzyme/bitwarden": "^0.19.0",
+        "@nzyme/cli-core": "^0.19.0",
+        "@nzyme/ioc": "^0.19.0",
+        "@nzyme/secrets": "^0.19.0"
+    },
+    "devDependencies": {
+        "@types/bun": "^1.4.5",
+        "@typescript/native-preview": "^7.0.0-dev.20260707.2"
+    }
+}

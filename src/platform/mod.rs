@@ -10,21 +10,22 @@
 //! default value: the rules treat unknown as protective.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 
 #[cfg(target_os = "macos")]
 pub mod launchd;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-mod notify;
+pub mod notify;
 #[cfg(target_os = "macos")]
 pub use macos::{
     alive, base_info, cmdline, current_pid, current_uid, cwd, list_pids, release_free_memory,
     signal, sockets,
 };
-#[cfg(target_os = "macos")]
-pub use notify::notify;
 
 /// The identity of a process: a pid whose current start time differs is a different process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -85,4 +86,61 @@ pub struct Sockets {
     /// Established TCP connections whose local port is one of `listening`: clients connected
     /// to it.
     pub inbound: usize,
+}
+
+/// Whether the system lets the daemon show notifications.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "state", content = "reason")]
+pub enum NotifyState {
+    Allowed,
+    Denied,
+    /// The user has not answered the permission request yet.
+    NotAsked,
+    /// Notifications cannot work here, and why.
+    Unavailable(String),
+}
+
+impl NotifyState {
+    /// The state from its [`fmt::Display`] form, as `request-notifications` prints it.
+    pub fn parse(line: &str) -> Option<Self> {
+        match line.trim() {
+            "allowed" => Some(Self::Allowed),
+            "denied" => Some(Self::Denied),
+            "not asked" => Some(Self::NotAsked),
+            other => other
+                .strip_prefix("unavailable (")
+                .and_then(|rest| rest.strip_suffix(')'))
+                .map(|reason| Self::Unavailable(reason.to_owned())),
+        }
+    }
+}
+
+impl fmt::Display for NotifyState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Allowed => f.write_str("allowed"),
+            Self::Denied => f.write_str("denied"),
+            Self::NotAsked => f.write_str("not asked"),
+            Self::Unavailable(reason) => write!(f, "unavailable ({reason})"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notify_states_print_and_parse_back() {
+        for state in [
+            NotifyState::Allowed,
+            NotifyState::Denied,
+            NotifyState::NotAsked,
+            NotifyState::Unavailable("not running from Leukocyte.app".to_owned()),
+        ] {
+            assert_eq!(NotifyState::parse(&state.to_string()), Some(state));
+        }
+        assert_eq!(NotifyState::parse("allowed\n"), Some(NotifyState::Allowed));
+        assert_eq!(NotifyState::parse("Usage: leukocyte"), None);
+    }
 }

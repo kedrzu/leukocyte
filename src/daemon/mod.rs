@@ -10,6 +10,7 @@
 
 pub mod config;
 pub mod ipc;
+mod lifecycle;
 mod log;
 mod redact;
 mod watch;
@@ -28,7 +29,7 @@ use crate::engine::{
 use crate::facts::table::ProcessTable;
 use crate::facts::{FactStore, ProcKey, RepoId, Repos};
 use crate::kill::{Executor, KillJob, KillReport};
-use crate::platform;
+use crate::platform::{self, NotifyState};
 use crate::rules::{Human, RuleSet};
 
 pub use config::{Config, ConfigMode, Paths, SCAN_INTERVAL};
@@ -36,14 +37,15 @@ use ipc::{
     CheckEvalError, CheckReply, Command, EvalErrorStatus, ExplanationReply, FuseStatus,
     InFlightStatus, RepoStatus, Request, Response, ScanStatus, SourceStatus, StatusReply,
 };
+pub use lifecycle::Exit;
 use log::{ActionLog, Event, Failed, KillReportFields, Skipped, rfc3339};
 use redact::Redactor;
 use watch::{Fingerprint, Refresh, RulesFile, Watches};
 
 /// Runs the daemon until the process is killed: the paths and scan interval from the
 /// environment, the socket, the file-system watch, and the scan loop on the calling thread.
-/// Returns only when it cannot start.
-pub fn run_daemon() -> io::Result<()> {
+/// Returns an error when it cannot start, and an [`Exit`] when its app was upgraded or removed.
+pub fn run_daemon() -> io::Result<Exit> {
     let paths = Paths::from_env()?;
     let interval = config::scan_interval(paths.isolated, std::env::var_os(config::INTERVAL_ENV));
     let (wake_tx, wake_rx) = mpsc::channel::<Wake>();
@@ -63,9 +65,14 @@ pub fn run_daemon() -> io::Result<()> {
     let notifier = if paths.isolated {
         Notifier::Silent
     } else {
-        Notifier::System
+        let system = platform::notify::Notifier::for_this_process();
+        if let Some(reason) = system.unavailable_reason() {
+            eprintln!("leukocyte: notifications unavailable ({reason}); they go only to this log");
+        }
+        Notifier::System(system)
     };
     let mut daemon = Daemon::new(paths.clone(), notifier, watches)?;
+    let mut self_watch = lifecycle::SelfWatch::for_this_process(paths.isolated);
 
     let listener = ipc::bind(&paths.socket())?;
     let status = daemon.status_handle();
@@ -86,6 +93,9 @@ pub fn run_daemon() -> io::Result<()> {
 
     loop {
         let started = Instant::now();
+        if let Some(exit) = self_watch.as_mut().and_then(lifecycle::SelfWatch::check) {
+            return Ok(exit);
+        }
         daemon.tick();
         let next = started + interval;
         while let Some(left) = next.checked_duration_since(Instant::now()) {
@@ -111,10 +121,9 @@ enum Wake {
 }
 
 /// Where notifications go.
-#[derive(Debug)]
 pub(crate) enum Notifier {
-    /// The system's notifications, through `osascript`.
-    System,
+    /// The system's notifications; a no-op outside `Leukocyte.app`.
+    System(platform::notify::Notifier),
     /// Only the daemon's stderr.
     Silent,
     #[cfg(test)]
@@ -125,14 +134,24 @@ impl Notifier {
     fn send(&mut self, title: &str, body: &str) {
         eprintln!("{title}: {body}");
         match self {
-            Self::System => {
-                if let Err(e) = platform::notify(title, body) {
-                    eprintln!("leukocyte: notification failed: {e}");
-                }
-            }
+            Self::System(system) => system.notify(title, body),
             Self::Silent => {}
             #[cfg(test)]
             Self::Record(sent) => sent.push((title.to_owned(), body.to_owned())),
+        }
+    }
+
+    /// Lets the system notifier re-query its permission state when due; never blocks.
+    fn refresh(&mut self) {
+        if let Self::System(system) = self {
+            system.refresh();
+        }
+    }
+
+    fn state(&self) -> NotifyState {
+        match self {
+            Self::System(system) => system.state(),
+            _ => NotifyState::Unavailable("off while LEUKOCYTE_HOME is set".to_owned()),
         }
     }
 }
@@ -378,6 +397,7 @@ impl Daemon {
     /// One scan: reload what changed, snapshot, update the facts, judge, act and log.
     pub fn tick(&mut self) {
         self.reload();
+        self.notifier.refresh();
         let started = Instant::now();
         // Nothing reads the previous snapshot during a scan; dropping it first keeps one table
         // alive at a time instead of two. A failed snapshot leaves none for `check`.
@@ -773,6 +793,7 @@ impl Daemon {
                 })
                 .collect(),
             fuse: self.last_fuse.clone(),
+            notifications: Some(self.notifier.state()),
             eval_errors: self
                 .eval_errors
                 .iter()
