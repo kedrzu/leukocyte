@@ -65,7 +65,11 @@ pub fn run_daemon() -> io::Result<Exit> {
     let notifier = if paths.isolated {
         Notifier::Silent
     } else {
-        Notifier::System(platform::notify::Notifier::for_this_process())
+        let system = platform::notify::Notifier::for_this_process();
+        if let Some(reason) = system.unavailable_reason() {
+            eprintln!("leukocyte: notifications unavailable ({reason}); they go only to this log");
+        }
+        Notifier::System(system)
     };
     let mut daemon = Daemon::new(paths.clone(), notifier, watches)?;
     let mut self_watch = lifecycle::SelfWatch::for_this_process(paths.isolated);

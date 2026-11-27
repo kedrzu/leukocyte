@@ -22,8 +22,8 @@ use std::time::{Duration, Instant};
 use crate::platform::{launchd, notify};
 
 /// How long the executable must be missing, without a break, before the daemon takes the app as
-/// uninstalled.
-pub const UNINSTALL_AFTER: Duration = Duration::from_secs(120);
+/// uninstalled: with the scan interval on top, cleanup ends within two minutes.
+pub const UNINSTALL_AFTER: Duration = Duration::from_secs(110);
 
 /// How many scans in a row must see the same replaced executable before the daemon restarts.
 pub const RESTART_AFTER_SCANS: u32 = 2;
@@ -265,8 +265,8 @@ mod tests {
         let mut t = Tracker::new(false, Path::new(APP_EXE), id(1));
         let mut seen = missing_for(30);
         seen.push(Observation::Present(id(1)));
-        // The clock restarts after the gap: another 115 s missing is still under the threshold.
-        seen.extend(missing_for(115));
+        // The clock restarts after the gap: another 105 s missing is still under the threshold.
+        seen.extend(missing_for(105));
         let start = Instant::now();
         assert!(
             run(&mut t, start, &seen)
@@ -300,8 +300,8 @@ mod tests {
             .iter()
             .position(|d| *d == Decision::Uninstall)
             .unwrap();
-        // The first scan that is 120 s after the first missing one.
-        assert_eq!(first, 24);
+        // The first scan that is 110 s after the first missing one.
+        assert_eq!(first, 22);
         assert!(decisions[..first].iter().all(|d| *d == Decision::Continue));
     }
 

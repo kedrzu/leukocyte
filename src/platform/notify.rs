@@ -97,6 +97,16 @@ impl Notifier {
         notifier
     }
 
+    /// Why this process cannot post notifications at all (outside `Leukocyte.app`); `None` inside
+    /// it, whatever the user allowed.
+    pub fn unavailable_reason(&self) -> Option<String> {
+        match (&self.center, self.state()) {
+            (None, NotifyState::Unavailable(reason)) => Some(reason),
+            (None, _) => Some("no notification center".to_owned()),
+            (Some(_), _) => None,
+        }
+    }
+
     /// The last authorization state the system reported.
     pub fn state(&self) -> NotifyState {
         self.state

@@ -126,18 +126,18 @@ canonical path and identity (device, inode, size, mtime). Every scan it stats th
 
 - **Replaced:** a new identity, the same on 2 scans in a row, makes it log `binary replaced,
   restarting` and exit 75; launchd's `KeepAlive { SuccessfulExit = false }` starts the new binary.
-- **Missing:** missing on every scan for 120 s makes it remove the LaunchAgent plist, only when the
+- **Missing:** missing on every scan for 110 s (so with a 5 s scan, done within two minutes) makes it remove the LaunchAgent plist, only when the
   plist's `ProgramArguments[0]` is this executable, log `app removed, uninstalling the login agent`
   and exit 0, which launchd does not restart; without the plist it does not load at the next login.
   An upgrade's gap between removing the old app and moving in the new one is seconds. Config, rules
   and logs stay (that is `zap`). A failed removal keeps the daemon running and is retried after
-  another 120 s.
+  another 110 s.
 - **Off** when `LEUKOCYTE_HOME` is set or the executable is not inside an `.app`, so tests and
   `cargo` builds never restart or remove anything.
 
 Probed on this machine (2026-11-27), with a copied app and a plist under a temporary `HOME`: moving a
 new binary over the running one exited 75 within one scan pair; deleting the app exited 0 after
-122 s with the plist gone.
+122 s with the plist gone (then with a 120 s threshold, since lowered to 110 s).
 
 Trade-off: cleanup after `brew uninstall` is eventual, up to about two minutes, during which the old
 daemon keeps running from the deleted binary; `leukocyte uninstall` before it stops the agent at
