@@ -161,3 +161,18 @@ this machine (2026-11-27), rendering icons through `NSWorkspace.icon(forFile:)`:
 So `packaging/icon.svg` draws its background as that path, with the artwork scaled by 824/976, and
 `scripts/icon.sh` rasterises with AppKit's SVG support onto a transparent bitmap, one renderer on
 every machine. The resulting icon renders without a plate.
+
+## Addendum: the cask lifecycle observed on the first releases (2026-11-27)
+
+Observed on the owner's Mac (macOS 26.6.2, Homebrew 7) with v0.2.0 and v0.2.1 from `kedrzu/tap`:
+
+- `brew install --cask kedrzu/tap/leukocyte`: no deprecation warning; `spctl --assess` accepts the
+  quarantined app as Notarized Developer ID, signed with the hardened runtime. `leukocyte install`
+  through the `/opt/homebrew/bin` link writes the plist with the canonical
+  `/Applications/Leukocyte.app/Contents/MacOS/leukocyte`, and the notification permission granted to
+  an earlier build of the same bundle identifier carried over.
+- `brew upgrade --cask leukocyte` 0.2.0 → 0.2.1: Homebrew backs the old app up into the Caskroom,
+  removes it, moves the new one in and purges the backup. The daemon logged `binary replaced,
+  restarting` and was serving as 0.2.1 under a new pid about 10 s after the upgrade ended.
+- `brew uninstall --cask leukocyte`: the daemon logged `app removed, uninstalling the login agent` and
+  exited 115 s after the command ended; the plist was gone and no daemon was left running.
